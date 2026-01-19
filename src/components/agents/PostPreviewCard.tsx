@@ -13,6 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   Check,
+  Loader2,
+  Image as ImageIcon,
 } from "lucide-react";
 import { GeneratedPost } from "@/hooks/useAgentChat";
 
@@ -23,6 +25,7 @@ interface PostPreviewCardProps {
   onUpdate: (updates: Partial<GeneratedPost>) => void;
   onDelete: () => void;
   onRegenerate: () => void;
+  onGenerateImage: () => void;
   isLoading?: boolean;
 }
 
@@ -33,6 +36,7 @@ export function PostPreviewCard({
   onUpdate,
   onDelete,
   onRegenerate,
+  onGenerateImage,
   isLoading,
 }: PostPreviewCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -61,15 +65,22 @@ export function PostPreviewCard({
     setIsEditing(false);
   };
 
+  const handleToggleImageGeneration = (checked: boolean) => {
+    onUpdate({ generateImage: checked });
+    if (checked && !post.imageUrl) {
+      onGenerateImage();
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
+      transition={{ delay: index * 0.05 }}
       className="bg-card border border-border rounded-xl overflow-hidden"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b border-border">
         <span className="text-sm font-medium">
           📝 Post {index + 1} of {totalPosts}
         </span>
@@ -77,49 +88,69 @@ export function PostPreviewCard({
           variant="ghost"
           size="icon"
           onClick={onDelete}
-          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+          className="h-7 w-7 text-muted-foreground hover:text-destructive"
         >
-          <Trash2 className="w-4 h-4" />
+          <Trash2 className="w-3.5 h-3.5" />
         </Button>
       </div>
 
+      {/* Generated Image */}
+      {post.imageUrl && (
+        <div className="relative">
+          <img 
+            src={post.imageUrl} 
+            alt="Generated post image" 
+            className="w-full h-32 object-cover"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="absolute top-2 right-2 h-7 w-7 bg-background/80 hover:bg-background"
+            onClick={onGenerateImage}
+            disabled={post.isGeneratingImage}
+          >
+            {post.isGeneratingImage ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="w-3.5 h-3.5" />
+            )}
+          </Button>
+        </div>
+      )}
+
       {/* Content */}
-      <div className="p-4">
+      <div className="p-3">
         {isEditing ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full min-h-[150px] p-3 rounded-lg border border-border bg-background resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full min-h-[120px] p-2.5 rounded-lg border border-border bg-background resize-none text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             />
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" size="sm" onClick={handleCancelEdit}>
                 Cancel
               </Button>
               <Button variant="gradient" size="sm" onClick={handleSaveEdit}>
-                <Check className="w-4 h-4 mr-1" />
+                <Check className="w-3.5 h-3.5 mr-1" />
                 Save
               </Button>
             </div>
           </div>
         ) : (
           <>
-            <p className="text-sm whitespace-pre-wrap">
-              {isExpanded ? post.content : `${post.content.substring(0, 200)}${post.content.length > 200 ? "..." : ""}`}
+            <p className="text-sm whitespace-pre-wrap leading-relaxed">
+              {isExpanded ? post.content : `${post.content.substring(0, 150)}${post.content.length > 150 ? "..." : ""}`}
             </p>
-            {post.content.length > 200 && (
+            {post.content.length > 150 && (
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-primary text-sm font-medium mt-2 flex items-center gap-1 hover:underline"
+                className="text-primary text-xs font-medium mt-1.5 flex items-center gap-0.5 hover:underline"
               >
                 {isExpanded ? (
-                  <>
-                    Show Less <ChevronUp className="w-4 h-4" />
-                  </>
+                  <>Less <ChevronUp className="w-3.5 h-3.5" /></>
                 ) : (
-                  <>
-                    View Full Post <ChevronDown className="w-4 h-4" />
-                  </>
+                  <>More <ChevronDown className="w-3.5 h-3.5" /></>
                 )}
               </button>
             )}
@@ -128,68 +159,89 @@ export function PostPreviewCard({
       </div>
 
       {/* Schedule Info */}
-      <div className="px-4 py-3 bg-muted/30 border-t border-border">
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Calendar className="w-4 h-4" />
+      <div className="px-3 py-2 bg-muted/30 border-t border-border">
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Calendar className="w-3.5 h-3.5" />
             <span>{formattedDate}</span>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="w-4 h-4" />
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Clock className="w-3.5 h-3.5" />
             <span>{formattedTime}</span>
           </div>
         </div>
         {post.reasoning && (
-          <p className="text-xs text-muted-foreground mt-1.5">
+          <p className="text-xs text-muted-foreground mt-1">
             💡 {post.reasoning}
           </p>
         )}
       </div>
 
       {/* AI Image Toggle */}
-      <div className="px-4 py-3 border-t border-border">
+      <div className="px-3 py-2.5 border-t border-border">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Switch
               checked={post.generateImage || false}
-              onCheckedChange={(checked) => onUpdate({ generateImage: checked })}
+              onCheckedChange={handleToggleImageGeneration}
+              disabled={post.isGeneratingImage}
             />
-            <label className="text-sm flex items-center gap-1">
-              <Sparkles className="w-4 h-4 text-secondary" />
-              Generate AI image
+            <label className="text-xs flex items-center gap-1">
+              {post.isGeneratingImage ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-secondary" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3.5 h-3.5 text-secondary" />
+                  AI image
+                </>
+              )}
             </label>
           </div>
+          {!post.imageUrl && post.generateImage && !post.isGeneratingImage && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onGenerateImage}
+            >
+              <ImageIcon className="w-3.5 h-3.5 mr-1" />
+              Generate
+            </Button>
+          )}
         </div>
-        {post.generateImage && (
+        {post.generateImage && !post.imageUrl && (
           <Input
             value={post.imagePrompt || ""}
             onChange={(e) => onUpdate({ imagePrompt: e.target.value })}
-            placeholder="Describe the image or leave blank to auto-generate..."
-            className="mt-2 text-sm"
+            placeholder="Custom image prompt (optional)..."
+            className="mt-2 text-xs h-8"
           />
         )}
       </div>
 
       {/* Actions */}
-      <div className="flex gap-2 p-4 border-t border-border">
+      <div className="flex gap-1.5 p-2.5 border-t border-border">
         <Button
           variant="outline"
           size="sm"
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
           onClick={() => setIsEditing(true)}
           disabled={isLoading}
         >
-          <Edit className="w-4 h-4 mr-1" />
+          <Edit className="w-3.5 h-3.5 mr-1" />
           Edit
         </Button>
         <Button
           variant="outline"
           size="sm"
-          className="flex-1"
+          className="flex-1 h-8 text-xs"
           onClick={onRegenerate}
           disabled={isLoading}
         >
-          <RefreshCw className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 mr-1 ${isLoading ? "animate-spin" : ""}`} />
           Regenerate
         </Button>
       </div>

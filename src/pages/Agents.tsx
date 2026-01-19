@@ -86,6 +86,22 @@ const AgentsPage = () => {
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Agent settings
+  const currentAgentSettings = {
+    type: selectedType || "professional",
+    tone,
+    emojiLevel: emojiLevel[0],
+    postLength,
+    voiceReference: voiceReference || undefined,
+  };
+
+  const currentUserContext = {
+    name: "User",
+    industry: "Technology",
+    company: "LinkedBot",
+    background: "Building innovative solutions",
+  };
+
   // Agent chat hook
   const {
     messages,
@@ -96,21 +112,8 @@ const AgentsPage = () => {
     updatePost,
     deletePost,
     regeneratePost,
-  } = useAgentChat(
-    {
-      type: selectedType || "professional",
-      tone,
-      emojiLevel: emojiLevel[0],
-      postLength,
-      voiceReference: voiceReference || undefined,
-    },
-    {
-      name: "User",
-      industry: "Technology",
-      company: "LinkedBot",
-      background: "Building innovative solutions",
-    }
-  );
+    generateImageForPost,
+  } = useAgentChat(currentAgentSettings, currentUserContext);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -599,7 +602,8 @@ const AgentsPage = () => {
                             totalPosts={generatedPosts.length}
                             onUpdate={(updates) => updatePost(post.id, updates)}
                             onDelete={() => deletePost(post.id)}
-                            onRegenerate={() => regeneratePost(post.id)}
+                            onRegenerate={() => regeneratePost(post.id, currentAgentSettings, currentUserContext)}
+                            onGenerateImage={() => generateImageForPost(post.id)}
                             isLoading={isLoading}
                           />
                         ))}
