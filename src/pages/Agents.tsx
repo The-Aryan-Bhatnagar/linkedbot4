@@ -34,10 +34,12 @@ import {
   Edit,
   Trash2,
   Loader2,
+  Linkedin,
 } from "lucide-react";
 import { useAgentChat } from "@/hooks/useAgentChat";
 import { PostPreviewCard } from "@/components/agents/PostPreviewCard";
 import { toast } from "sonner";
+import { useLinkedBotExtension } from "@/hooks/useLinkedBotExtension";
 
 const agentTypes = [
   { id: "comedy", icon: Smile, label: "Comedy/Humorous", description: "Funny, light-hearted posts" },
@@ -114,6 +116,15 @@ const AgentsPage = () => {
     generateImageForPost,
   } = useAgentChat(currentAgentSettings, currentUserContext);
 
+  // Extension hook for posting to LinkedIn
+  const { 
+    isConnected: isExtensionConnected, 
+    sendPendingPosts,
+    isLoading: isExtensionLoading 
+  } = useLinkedBotExtension();
+
+  const [isScheduling, setIsScheduling] = useState(false);
+
   // Reset chat when agent type changes to show new welcome message
   useEffect(() => {
     if (selectedType && createStep === 3) {
@@ -161,14 +172,40 @@ const AgentsPage = () => {
     return agentType?.icon || Bot;
   };
 
-  const handleScheduleAll = () => {
+  const handleScheduleAll = async () => {
     if (generatedPosts.length === 0) {
       toast.error("No posts to schedule");
       return;
     }
-    toast.success(`Scheduled ${generatedPosts.length} posts!`);
-    setShowCreateModal(false);
-    resetModal();
+
+    if (!isExtensionConnected) {
+      toast.error("Chrome extension not connected. Please connect from Dashboard first.");
+      return;
+    }
+
+    setIsScheduling(true);
+    
+    try {
+      // Format posts for extension
+      const postsForExtension = generatedPosts.map((post) => ({
+        id: post.id,
+        content: post.content,
+        photo_url: post.imageUrl,
+        scheduled_time: post.scheduledDateTime || new Date().toISOString(),
+      }));
+
+      // Send to extension
+      sendPendingPosts(postsForExtension);
+      
+      toast.success(`Sent ${generatedPosts.length} posts to extension for LinkedIn posting!`);
+      setShowCreateModal(false);
+      resetModal();
+    } catch (error) {
+      console.error("Error scheduling posts:", error);
+      toast.error("Failed to send posts to extension. Please try again.");
+    } finally {
+      setIsScheduling(false);
+    }
   };
 
   return (
@@ -648,15 +685,27 @@ const AgentsPage = () => {
                   <ArrowLeft className="w-4 h-4" />
                   Back
                 </Button>
-                <Button 
-                  variant="success" 
-                  className="gap-2"
-                  onClick={handleScheduleAll}
-                  disabled={generatedPosts.length === 0}
-                >
-                  <Check className="w-4 h-4" />
-                  Schedule All {generatedPosts.length > 0 ? `(${generatedPosts.length})` : ""} Posts
-                </Button>
+                <div className="flex items-center gap-3">
+                  {!isExtensionConnected && (
+                    <span className="text-sm text-amber-500 flex items-center gap-1">
+                      <Linkedin className="w-4 h-4" />
+                      Extension not connected
+                    </span>
+                  )}
+                  <Button 
+                    variant="success" 
+                    className="gap-2"
+                    onClick={handleScheduleAll}
+                    disabled={generatedPosts.length === 0 || isScheduling}
+                  >
+                    {isScheduling ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Linkedin className="w-4 h-4" />
+                    )}
+                    {isScheduling ? "Sending..." : `Post to LinkedIn (${generatedPosts.length})`}
+                  </Button>
+                </div>
               </div>
             </div>
           )}
