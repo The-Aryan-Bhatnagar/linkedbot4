@@ -304,8 +304,6 @@ function fallbackDetectPostGenerationIntent(message: string): boolean {
     "write",
     "make",
     "draft",
-    "schedule",
-    "publish",
     "regenerate",
   ];
   const lower = message.toLowerCase();
@@ -313,18 +311,26 @@ function fallbackDetectPostGenerationIntent(message: string): boolean {
     (lower.includes("post") || lower.includes("posts") || lower.includes("content"));
 }
 
-function detectPostNowIntent(message: string): boolean {
+function detectPostingIntent(message: string): boolean {
   const lower = message.toLowerCase();
-  return /\bpost(\s+it)?\s+now\b/.test(lower) || 
-         /\bpublish(\s+it)?\s+now\b/.test(lower) ||
-         /\bsend(\s+it)?\s+now\b/.test(lower);
+  // Detect explicit posting permission
+  return /\bpost(\s+it)?\b/.test(lower) || 
+         /\bpublish(\s+it)?\b/.test(lower) ||
+         /\bschedule(\s+(it|this))?\b/.test(lower) ||
+         /\bgo\s+ahead\b/.test(lower) ||
+         /\bpost\s*now\b/.test(lower);
 }
 
-function detectScheduleIntent(message: string): { detected: boolean; time?: string } {
+function detectPostNowIntent(message: string): boolean {
   const lower = message.toLowerCase();
-  
-  // Match patterns like "post at 12:32 am", "schedule for 3pm", "post it at 9:00 AM"
-  const timeMatch = message.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
+  return /\bpost(\s+it)?\s*now\b/.test(lower) || 
+         /\bpublish(\s+it)?\s*now\b/.test(lower) ||
+         /\bnow\b/.test(lower);
+}
+
+function parseScheduleTime(message: string): string | null {
+  // Match patterns like "12:32 am", "3pm", "9:00 AM", "today at 6 PM", "tomorrow morning"
+  const timeMatch = message.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
   if (timeMatch) {
     let hours = Number.parseInt(timeMatch[1], 10);
     const minutes = Number.parseInt(timeMatch[2] ?? "0", 10);
@@ -336,18 +342,49 @@ function detectScheduleIntent(message: string): { detected: boolean; time?: stri
     const now = new Date();
     const scheduled = new Date(now);
     scheduled.setHours(hours, minutes, 0, 0);
+    
+    // If time has passed today, schedule for tomorrow
     if (scheduled.getTime() <= now.getTime()) {
       scheduled.setDate(scheduled.getDate() + 1);
     }
-    return { detected: true, time: scheduled.toISOString() };
+    
+    // Check for "tomorrow" keyword
+    if (/\btomorrow\b/i.test(message)) {
+      scheduled.setDate(scheduled.getDate() + 1);
+    }
+    
+    return scheduled.toISOString();
   }
   
-  // Check for general schedule intent without specific time
-  if (/\bschedule(\s+it)?\b/.test(lower) || /\bpost(\s+it)?\s+later\b/.test(lower)) {
-    return { detected: true };
+  // Handle relative times like "tomorrow morning", "tomorrow at 9"
+  if (/\btomorrow\s*(morning)?\b/i.test(message)) {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0); // Default to 9 AM
+    return tomorrow.toISOString();
   }
   
-  return { detected: false };
+  return null;
+}
+
+function getNextOptimalLinkedInTime(): string {
+  const now = new Date();
+  const scheduled = new Date(now);
+  
+  // Find next weekday 9 AM
+  scheduled.setHours(9, 0, 0, 0);
+  
+  // If it's past 9 AM or weekend, move to next optimal slot
+  if (now.getHours() >= 9 || now.getDay() === 0 || now.getDay() === 6) {
+    scheduled.setDate(scheduled.getDate() + 1);
+  }
+  
+  // Skip weekends
+  while (scheduled.getDay() === 0 || scheduled.getDay() === 6) {
+    scheduled.setDate(scheduled.getDate() + 1);
+  }
+  
+  return scheduled.toISOString();
 }
 
 function fallbackExtractCount(message: string): number {
@@ -412,23 +449,14 @@ async function parseAgentRequest(
   { message, history }: { message: string; history: ChatMessage[] },
   apiKey: string,
 ): Promise<ParsedAgentRequest> {
-  // First check for immediate posting commands
-  if (detectPostNowIntent(message)) {
-    return {
-      action: "post_now",
-      topic: null,
-      count: 1,
-    };
-  }
-  
-  // Check for scheduling commands
-  const scheduleResult = detectScheduleIntent(message);
-  if (scheduleResult.detected) {
+  // Check for scheduling commands with time
+  const scheduledTime = parseScheduleTime(message);
+  if (scheduledTime && detectPostingIntent(message)) {
     return {
       action: "schedule_post",
       topic: null,
       count: 1,
-      scheduledTime: scheduleResult.time,
+      scheduledTime: scheduledTime,
     };
   }
 
@@ -601,20 +629,27 @@ serve(async (req) => {
 
     const parsed = await parseAgentRequest({ message, history }, LOVABLE_API_KEY);
 
-    // Handle "post now" command - client should handle posting, we just acknowledge
-    if (parsed.action === "post_now") {
-      return new Response(JSON.stringify({
-        type: "post_now",
-        message: "🚀 Posting to LinkedIn now! I'll send your content to the extension.",
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Handle scheduling command
-    if (parsed.action === "schedule_post") {
-      if (parsed.scheduledTime) {
-        const scheduledDate = new Date(parsed.scheduledTime);
+    // ========================================
+    // LINKEDBOT POSTING LOGIC
+    // ========================================
+    
+    // Check if user is giving explicit posting permission
+    if (detectPostingIntent(message)) {
+      // Check for "post now" intent
+      if (detectPostNowIntent(message)) {
+        return new Response(JSON.stringify({
+          type: "post_now",
+          message: "✅ Posting now.\n\nI'll take care of the rest.",
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      
+      // Try to parse a specific time from the message
+      const scheduledTime = parseScheduleTime(message);
+      
+      if (scheduledTime) {
+        const scheduledDate = new Date(scheduledTime);
         const formattedTime = scheduledDate.toLocaleTimeString("en-US", { 
           hour: "numeric", 
           minute: "2-digit", 
@@ -628,20 +663,43 @@ serve(async (req) => {
         
         return new Response(JSON.stringify({
           type: "schedule_post",
-          message: `📅 Got it! I'll schedule your post for **${formattedTime}** on **${formattedDate}**.`,
-          scheduledTime: parsed.scheduledTime,
-        }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      } else {
-        // No time specified, ask for time
-        return new Response(JSON.stringify({
-          type: "ask_schedule",
-          message: `When would you like me to post this?\n\nYou can say:\n• "Post at 9:00 AM"\n• "Schedule for 2:30 PM"\n• "Post now" (to publish immediately)\n\nOr pick a suggested time:\n• 🌅 Morning (9:00 AM) - Great for B2B content\n• 🌞 Lunch (12:00 PM) - High engagement period\n• 🌆 Afternoon (3:00 PM) - Good for thought pieces\n• 🌙 Evening (6:00 PM) - Best for stories`,
+          message: `✅ Your post is scheduled for ${formattedTime} on ${formattedDate}.\n\nI'll take care of the rest.`,
+          scheduledTime: scheduledTime,
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      
+      // No time specified - ask ONE short follow-up question
+      return new Response(JSON.stringify({
+        type: "ask_schedule",
+        message: "When should I post this? (e.g., today at 6 PM or tomorrow morning)",
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    
+    // Handle schedule_post action from parseAgentRequest (for backwards compatibility)
+    if (parsed.action === "schedule_post" && parsed.scheduledTime) {
+      const scheduledDate = new Date(parsed.scheduledTime);
+      const formattedTime = scheduledDate.toLocaleTimeString("en-US", { 
+        hour: "numeric", 
+        minute: "2-digit", 
+        hour12: true 
+      });
+      const formattedDate = scheduledDate.toLocaleDateString("en-US", { 
+        weekday: "long", 
+        month: "short", 
+        day: "numeric" 
+      });
+      
+      return new Response(JSON.stringify({
+        type: "schedule_post",
+        message: `✅ Your post is scheduled for ${formattedTime} on ${formattedDate}.\n\nI'll take care of the rest.`,
+        scheduledTime: parsed.scheduledTime,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const shouldGeneratePosts = parsed.action === "generate_posts";
