@@ -134,19 +134,14 @@ function getInitialMessage(agentType: string): ChatMessage {
   
   return {
     role: "assistant",
-    content: `Hey! 👋 I'm your LinkedIn content assistant. ${config.intro}
+    content: `Hi — I’m your LinkedIn posting agent. ${config.intro}
 
-I can:
-• Create engaging LinkedIn posts on any topic
-• Research trending topics in your industry
-• Suggest the best times to post for maximum reach
-• Generate AI images for your posts
-• Schedule your posts in advance
+Tell me what you want to write (and how many posts you need).
 
 **Sample topics for this style:**
 ${config.samples.map(s => `• ${s}`).join('\n')}
 
-What would you like to post about? Just tell me your topic and how many posts you need!`
+What should we write about?`,
   };
 }
 

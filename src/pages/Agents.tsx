@@ -126,6 +126,7 @@ const AgentsPage = () => {
 
   const [isScheduling, setIsScheduling] = useState(false);
   const [isPostingNow, setIsPostingNow] = useState(false);
+  const [awaitingScheduleTime, setAwaitingScheduleTime] = useState(false);
 
   const parseRequestedScheduleTimeIso = (text: string): string | null => {
     const match = text.match(/\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i);
@@ -218,31 +219,42 @@ const AgentsPage = () => {
     const message = chatInput.trim();
     setChatInput("");
 
-    // If the user already has generated posts visible, check for posting commands
-    if (generatedPosts.length > 0) {
-      const requestedScheduleIso = parseRequestedScheduleTimeIso(message);
-      const wantsPostNow =
-        /\bpost(\s+it)?\s+now\b/i.test(message) ||
-        /\bpublish(\s+it)?\s+now\b/i.test(message) ||
-        /\bsend(\s+it)?\s+now\b/i.test(message);
+    // If we're waiting for the user's schedule time, let the agent parse it so it can reply with the
+    // required confirmation format (and we can schedule via extension from the structured response).
+    if (!awaitingScheduleTime) {
+      // If the user already has generated posts visible, check for posting commands
+      if (generatedPosts.length > 0) {
+        const requestedScheduleIso = parseRequestedScheduleTimeIso(message);
+        const wantsPostNow =
+          /\bpost(\s+it)?\s+now\b/i.test(message) ||
+          /\bpublish(\s+it)?\s+now\b/i.test(message) ||
+          /\bsend(\s+it)?\s+now\b/i.test(message);
 
-      if (wantsPostNow) {
-        const first = generatedPosts[0];
-        await postSingleNow(first);
-        return;
-      }
+        if (wantsPostNow) {
+          const first = generatedPosts[0];
+          await postSingleNow(first);
+          return;
+        }
 
-      if (requestedScheduleIso) {
-        const first = generatedPosts[0];
-        await scheduleSingle(first, requestedScheduleIso);
-        return;
+        if (requestedScheduleIso) {
+          const first = generatedPosts[0];
+          await scheduleSingle(first, requestedScheduleIso);
+          return;
+        }
       }
     }
 
     const result = await sendMessage(message);
 
+    // Agent is asking for a time — next user message should be treated as the schedule time.
+    if (result?.type === "ask_schedule") {
+      setAwaitingScheduleTime(true);
+      return;
+    }
+
     // Handle post_now response - immediately post the first available post
     if (result?.type === "post_now" && generatedPosts.length > 0) {
+      setAwaitingScheduleTime(false);
       const first = generatedPosts[0];
       await postSingleNow(first);
       return;
@@ -250,6 +262,7 @@ const AgentsPage = () => {
 
     // Handle schedule_post response - schedule the first available post
     if (result?.type === "schedule_post" && generatedPosts.length > 0) {
+      setAwaitingScheduleTime(false);
       const first = generatedPosts[0];
       await scheduleSingle(first, result.scheduledTime);
       return;
@@ -268,6 +281,7 @@ const AgentsPage = () => {
     setSelectedType(null);
     setShowAdvanced(false);
     setChatInput("");
+    setAwaitingScheduleTime(false);
     resetChat();
   };
 
