@@ -332,11 +332,12 @@ const AgentsPage = () => {
     return agentType?.icon || Bot;
   };
 
-  const handleScheduleAll = async () => {
+  // Post all generated posts immediately using postNow (same as test extension button)
+  const handlePostAllNow = async () => {
     // HARD GATE #1: Must have posts
     if (generatedPosts.length === 0) {
-      toast.error("No posts to schedule. Generate posts first.");
-      addActivityEntry("failed", "No posts to schedule");
+      toast.error("No posts to publish. Generate posts first.");
+      addActivityEntry("failed", "No posts to publish");
       return;
     }
 
@@ -355,48 +356,15 @@ const AgentsPage = () => {
       return;
     }
 
-    setIsScheduling(true);
-    addActivityEntry("sending", `Sending ${generatedPosts.length} posts to extension...`);
-
-    try {
-      // Format posts for extension - only include posts with valid content
-      const postsForExtension = generatedPosts
-        .filter(p => p.content?.trim() && p.content.trim().length >= 10)
-        .map((post) => ({
-          id: post.id,
-          content: post.content,
-          photo_url: post.imageUrl,
-          scheduled_time: post.scheduledDateTime || new Date().toISOString(),
-        }));
-
-      if (postsForExtension.length === 0) {
-        addActivityEntry("failed", "No valid posts to send");
-        toast.error("No valid posts to schedule.");
-        setIsScheduling(false);
-        return;
-      }
-
-      // Send to extension
-      const result = await sendPendingPosts(postsForExtension);
-
-      if (result.success) {
-        // DO NOT show success toast - wait for extension confirmation
-        addActivityEntry("queued", `${postsForExtension.length} posts sent. Waiting for confirmation...`);
-        toast.info(`Sent ${postsForExtension.length} posts to extension.`);
-        setShowCreateModal(false);
-        resetModal();
-      } else {
-        addActivityEntry("failed", result.error || "Extension rejected bulk schedule");
-        toast.error(result.error || "Failed to send posts to extension.");
-      }
-    } catch (error: any) {
-      console.error("Error scheduling posts:", error);
-      const errorMsg = error?.message || "Extension error during bulk schedule";
-      addActivityEntry("failed", errorMsg);
-      toast.error(errorMsg);
-    } finally {
-      setIsScheduling(false);
+    setIsPostingNow(true);
+    
+    // Post each one using the same postNow function as test extension button
+    for (const post of generatedPosts) {
+      addActivityEntry("sending", `Posting "${post.content.substring(0, 30)}..."`, post.id);
+      await postSingleNow(post);
     }
+    
+    setIsPostingNow(false);
   };
 
   return (
@@ -891,15 +859,15 @@ const AgentsPage = () => {
                   <Button 
                     variant="success" 
                     className="gap-2"
-                    onClick={handleScheduleAll}
-                    disabled={generatedPosts.length === 0 || isScheduling}
+                    onClick={handlePostAllNow}
+                    disabled={generatedPosts.length === 0 || isPostingNow}
                   >
-                    {isScheduling ? (
+                    {isPostingNow ? (
                       <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
                       <Linkedin className="w-4 h-4" />
                     )}
-                    {isScheduling ? "Sending..." : `Post to LinkedIn (${generatedPosts.length})`}
+                    {isPostingNow ? "Posting..." : `Post Now (${generatedPosts.length})`}
                   </Button>
                 </div>
               </div>
