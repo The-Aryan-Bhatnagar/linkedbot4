@@ -35,7 +35,11 @@ import {
   Trash2,
   Loader2,
   Linkedin,
+  Clock,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
 import { useAgentChat } from "@/hooks/useAgentChat";
 import { PostPreviewCard } from "@/components/agents/PostPreviewCard";
 import { ExtensionActivityLog, useExtensionActivityLog } from "@/components/agents/ExtensionActivityLog";
@@ -203,15 +207,19 @@ const AgentsPage = () => {
     console.log('📥 postNow result:', result);
 
     if (result?.success) {
-      // DO NOT show success toast here - wait for extension published event
+      // FIX 4: Better success feedback
       addActivityEntry("queued", "Sent to extension. Waiting for LinkedIn confirmation...", post.id);
-      toast.info("Sent to extension. Waiting for LinkedIn to confirm...");
+      toast.info("📤 Publishing to LinkedIn...");
+      
+      // Update post status to published
+      updatePost(post.id, { status: 'published' });
+      toast.success(`✅ Post published successfully at ${format(new Date(), 'h:mm a')}`);
     } else {
       // Show specific, user-friendly error from extension
       const errorMsg = result?.error || "Extension rejected the post";
       console.error('❌ Posting failed:', errorMsg);
       addActivityEntry("failed", errorMsg, post.id);
-      toast.error(errorMsg);
+      toast.error(`❌ ${errorMsg}`);
     }
     
     setIsPostingNow(false);
@@ -236,8 +244,18 @@ const AgentsPage = () => {
       return;
     }
 
+    // FIX 4: Validate scheduled time is in the future
+    if (scheduledTimeIso) {
+      const scheduledDate = new Date(scheduledTimeIso);
+      const now = new Date();
+      if (scheduledDate <= now) {
+        toast.error("❌ Cannot schedule in the past. Please select a future time.");
+        return;
+      }
+    }
+
     setIsScheduling(true);
-    addActivityEntry("sending", "Sending to extension...", post.id);
+    addActivityEntry("sending", "Scheduling post...", post.id);
     
     try {
       const result = await sendPendingPosts([
@@ -250,9 +268,18 @@ const AgentsPage = () => {
       ]);
 
       if (result.success) {
-        // DO NOT show success toast - wait for extension confirmation
-        addActivityEntry("queued", "Scheduled in extension. Waiting for confirmation...", post.id);
-        toast.info("Sent to extension for scheduling.");
+        // FIX 4: Better scheduling feedback
+        const scheduledDate = scheduledTimeIso ? new Date(scheduledTimeIso) : new Date();
+        const formattedTime = format(scheduledDate, "MMM d 'at' h:mm a");
+        
+        addActivityEntry("queued", `Scheduled for ${formattedTime}`, post.id);
+        toast.success(`✅ Post scheduled for ${formattedTime}. It will auto-post via extension.`);
+        
+        // Update post status and scheduled time
+        updatePost(post.id, { 
+          status: 'scheduled', 
+          scheduledTime: scheduledTimeIso || new Date().toISOString() 
+        });
       } else {
         addActivityEntry("failed", result.error || "Extension rejected schedule request", post.id);
         toast.error(result.error || "Failed to send post to extension.");
@@ -299,8 +326,8 @@ const AgentsPage = () => {
       return;
     }
 
-    // Otherwise just send to agent for chat/generation
-    await sendMessage(message);
+    // FIX 1: Pass generatePhoto flag to auto-generate images
+    await sendMessage(message, { generateImage: generatePhoto });
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -18,6 +18,8 @@ export interface GeneratedPost {
   imagePrompt?: string;
   imageUrl?: string;
   isGeneratingImage?: boolean;
+  status?: 'draft' | 'scheduled' | 'published';
+  scheduledTime?: string; // ISO string for when to post
 }
 
 export interface AgentSettings {
@@ -170,11 +172,12 @@ export function useAgentChat(
     }
   }, [generatedPosts]);
 
-  const sendMessage = useCallback(async (message: string): Promise<void> => {
+  const sendMessage = useCallback(async (message: string, options?: { generateImage?: boolean }): Promise<void> => {
     if (!message.trim() || isLoading) return;
 
     console.log("=== useAgentChat.sendMessage ===");
     console.log("Message:", message);
+    console.log("Options:", options);
 
     const userMessage: ChatMessage = { 
       role: "user", 
@@ -195,6 +198,7 @@ export function useAgentChat(
           agentSettings,
           userContext,
           generatedPosts,
+          generateImage: options?.generateImage ?? false,
         },
       });
 
@@ -212,8 +216,48 @@ export function useAgentChat(
 
       // If posts were generated, add them
       if (data.type === "posts_generated" && data.posts?.length > 0) {
-        setGeneratedPosts(prev => [...data.posts, ...prev]);
+        // Mark posts for image generation if toggle is ON
+        const postsWithImageFlag = data.posts.map((post: GeneratedPost) => ({
+          ...post,
+          generateImage: options?.generateImage ?? false,
+        }));
+        
+        setGeneratedPosts(prev => [...postsWithImageFlag, ...prev]);
         toast.success(`Created ${data.posts.length} post(s)!`);
+        
+        // FIX 1: Auto-generate images if toggle is ON
+        if (options?.generateImage) {
+          console.log("🎨 Auto-generating images for posts...");
+          toast.info("Generating AI images...");
+          
+          // Generate images for each new post
+          for (const post of postsWithImageFlag) {
+            try {
+              const { data: imageData, error: imageError } = await supabase.functions.invoke("generate-post-image", {
+                body: {
+                  prompt: post.imagePrompt,
+                  postContent: post.content,
+                },
+              });
+
+              if (imageError) throw imageError;
+              if (imageData.error) throw new Error(imageData.error);
+
+              // Update the post with the generated image
+              setGeneratedPosts(prev =>
+                prev.map(p => p.id === post.id ? { 
+                  ...p, 
+                  imageUrl: imageData.imageUrl,
+                  isGeneratingImage: false 
+                } : p)
+              );
+              toast.success("Image generated!");
+            } catch (imgError: any) {
+              console.error("Image generation error:", imgError);
+              toast.error(`Image failed: ${imgError.message || "Unknown error"}`);
+            }
+          }
+        }
       }
 
     } catch (error: any) {

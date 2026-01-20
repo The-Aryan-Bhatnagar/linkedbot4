@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
   Clock,
@@ -15,8 +16,11 @@ import {
   Check,
   Loader2,
   Image as ImageIcon,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { GeneratedPost } from "@/hooks/useAgentChat";
+import { formatDistanceToNow } from "date-fns";
 
 interface PostPreviewCardProps {
   post: GeneratedPost;
@@ -72,18 +76,57 @@ export function PostPreviewCard({
     }
   };
 
+  // FIX 4: Status badge styling
+  const getStatusBadge = () => {
+    const status = post.status || 'draft';
+    switch (status) {
+      case 'published':
+        return (
+          <Badge variant="default" className="bg-green-500/20 text-green-600 border-green-500/30">
+            <CheckCircle className="w-3 h-3 mr-1" />
+            Published
+          </Badge>
+        );
+      case 'scheduled':
+        return (
+          <Badge variant="default" className="bg-blue-500/20 text-blue-600 border-blue-500/30">
+            <Clock className="w-3 h-3 mr-1" />
+            {post.scheduledTime 
+              ? `In ${formatDistanceToNow(new Date(post.scheduledTime))}` 
+              : 'Scheduled'}
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="secondary" className="bg-muted text-muted-foreground">
+            <Edit className="w-3 h-3 mr-1" />
+            Draft
+          </Badge>
+        );
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="bg-card border border-border rounded-xl overflow-hidden"
+      className={`bg-card border rounded-xl overflow-hidden ${
+        post.status === 'published' 
+          ? 'border-green-500/30' 
+          : post.status === 'scheduled' 
+            ? 'border-blue-500/30' 
+            : 'border-border'
+      }`}
     >
-      {/* Header */}
+      {/* Header with status */}
       <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 border-b border-border">
-        <span className="text-sm font-medium">
-          📝 Post {index + 1} of {totalPosts}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">
+            📝 Post {index + 1} of {totalPosts}
+          </span>
+          {getStatusBadge()}
+        </div>
         <Button
           variant="ghost"
           size="icon"
