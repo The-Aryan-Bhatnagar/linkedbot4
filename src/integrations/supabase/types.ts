@@ -14,7 +14,174 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      linkedin_analytics: {
+        Row: {
+          connections_count: number | null
+          created_at: string
+          followers_count: number | null
+          id: string
+          last_synced: string | null
+          profile_url: string | null
+          total_posts: number | null
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          connections_count?: number | null
+          created_at?: string
+          followers_count?: number | null
+          id?: string
+          last_synced?: string | null
+          profile_url?: string | null
+          total_posts?: number | null
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          connections_count?: number | null
+          created_at?: string
+          followers_count?: number | null
+          id?: string
+          last_synced?: string | null
+          profile_url?: string | null
+          total_posts?: number | null
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      linkedin_post_history: {
+        Row: {
+          comments: number | null
+          created_at: string
+          id: string
+          likes: number | null
+          linkedin_url: string | null
+          post_content: string
+          post_date: string | null
+          scraped_at: string | null
+          shares: number | null
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          linkedin_url?: string | null
+          post_content: string
+          post_date?: string | null
+          scraped_at?: string | null
+          shares?: number | null
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          linkedin_url?: string | null
+          post_content?: string
+          post_date?: string | null
+          scraped_at?: string | null
+          shares?: number | null
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
+      post_analytics: {
+        Row: {
+          comments: number | null
+          content_preview: string | null
+          created_at: string
+          id: string
+          likes: number | null
+          linkedin_url: string | null
+          post_id: string
+          post_timestamp: string | null
+          scraped_at: string | null
+          shares: number | null
+          updated_at: string
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          content_preview?: string | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          linkedin_url?: string | null
+          post_id: string
+          post_timestamp?: string | null
+          scraped_at?: string | null
+          shares?: number | null
+          updated_at?: string
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          content_preview?: string | null
+          created_at?: string
+          id?: string
+          likes?: number | null
+          linkedin_url?: string | null
+          post_id?: string
+          post_timestamp?: string | null
+          scraped_at?: string | null
+          shares?: number | null
+          updated_at?: string
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: []
+      }
+      user_writing_style: {
+        Row: {
+          avg_post_length: number | null
+          common_topics: string[] | null
+          created_at: string
+          emoji_usage: boolean | null
+          hashtag_style: string | null
+          id: string
+          tone_analysis: Json | null
+          total_posts_analyzed: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avg_post_length?: number | null
+          common_topics?: string[] | null
+          created_at?: string
+          emoji_usage?: boolean | null
+          hashtag_style?: string | null
+          id?: string
+          tone_analysis?: Json | null
+          total_posts_analyzed?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avg_post_length?: number | null
+          common_topics?: string[] | null
+          created_at?: string
+          emoji_usage?: boolean | null
+          hashtag_style?: string | null
+          id?: string
+          tone_analysis?: Json | null
+          total_posts_analyzed?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

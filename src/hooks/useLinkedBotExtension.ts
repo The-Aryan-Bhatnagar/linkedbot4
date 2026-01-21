@@ -319,6 +319,25 @@ declare global {
       sendPendingPosts: (posts: { id: string; content: string; photo_url?: string; scheduled_time: string }[]) => void;
       postNow: (post: { id: string; content: string; photo_url?: string; scheduled_time: string }) => Promise<{ success: boolean; linkedinPostId?: string; error?: string }>;
       onEvent: (callback: (event: string, data: unknown) => void) => void;
+      // Analytics methods
+      scrapeAnalytics: () => Promise<{ 
+        success: boolean; 
+        error?: string; 
+        data?: { 
+          profile: { username?: string; profileUrl?: string; followersCount?: number; connectionsCount?: number };
+          posts: Array<{ postId?: string; content?: string; views?: number; likes?: number; comments?: number; reposts?: number; timestamp?: string; linkedinUrl?: string }>;
+          scrapedAt: string;
+        } 
+      }>;
+      scanPosts: (limit?: number) => Promise<{ 
+        success: boolean; 
+        error?: string; 
+        data?: { 
+          posts: Array<{ content: string; timestamp?: string; views?: number; likes?: number; comments?: number; reposts?: number; postUrl?: string }>;
+          writingStyle?: { avgPostLength?: number; tone?: string; usesEmojis?: boolean; usesHashtags?: boolean; avgHashtagsPerPost?: number; commonHashtags?: string[] };
+        } 
+      }>;
+      onPostHistoryScanned?: (callback: (data: unknown) => void) => void;
     };
   }
 }
