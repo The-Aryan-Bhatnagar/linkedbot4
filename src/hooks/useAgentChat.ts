@@ -6,6 +6,13 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp?: Date;
+  uploadedImages?: string[]; // URLs of uploaded images for display
+}
+
+export interface PreviewPost {
+  content: string;
+  imageUrl?: string;
+  agentType?: string;
 }
 
 export interface GeneratedPost {
@@ -140,6 +147,7 @@ export function useAgentChat(
   });
   
   const [isLoading, setIsLoading] = useState(false);
+  const [previewPost, setPreviewPost] = useState<PreviewPost | null>(null);
   
   const [generatedPosts, setGeneratedPosts] = useState<GeneratedPost[]>(() => {
     const stored = loadStoredPosts();
@@ -179,10 +187,18 @@ export function useAgentChat(
     console.log("Message:", message);
     console.log("Options:", options);
 
+    // Store image URLs for display in chat (clean display version)
+    const displayImages = options?.uploadedImages ?? [];
+    
+    // Create display message (without the [UPLOADED_IMAGES:] marker for cleaner chat)
+    const displayContent = message.replace(/\[UPLOADED_IMAGES:[^\]]+\]/g, "").trim() || 
+      (displayImages.length > 0 ? "Create posts for these images" : message);
+    
     const userMessage: ChatMessage = { 
       role: "user", 
-      content: message,
+      content: displayContent,
       timestamp: new Date(),
+      uploadedImages: displayImages.length > 0 ? displayImages : undefined,
     };
     setMessages(prev => [...prev, userMessage]);
     setIsLoading(true);
@@ -215,7 +231,19 @@ export function useAgentChat(
       };
       setMessages(prev => [...prev, assistantMessage]);
 
-      // If posts were generated, add them
+      // Handle preview response (for image uploads) - show scheduling dialog
+      if (data.type === "post_preview" && data.previewPost) {
+        console.log("📸 Received preview post - showing scheduling dialog");
+        setPreviewPost({
+          content: data.previewPost.content,
+          imageUrl: data.previewPost.imageUrl,
+          agentType: data.previewPost.agentType,
+        });
+        // Don't add to generatedPosts yet - wait for user confirmation
+        return;
+      }
+
+      // If posts were generated directly, add them
       if (data.type === "posts_generated" && data.posts?.length > 0) {
         // Mark posts for image generation if toggle is ON
         const postsWithImageFlag = data.posts.map((post: GeneratedPost) => ({
@@ -226,7 +254,7 @@ export function useAgentChat(
         setGeneratedPosts(prev => [...postsWithImageFlag, ...prev]);
         toast.success(`Created ${data.posts.length} post(s)!`);
         
-        // FIX 1: Auto-generate images if toggle is ON
+        // Auto-generate images if toggle is ON
         if (options?.generateImage) {
           console.log("🎨 Auto-generating images for posts...");
           toast.info("Generating AI images...");
@@ -375,10 +403,37 @@ export function useAgentChat(
     }
   }, [generatedPosts]);
 
+  // Confirm preview post and add to generated posts
+  const confirmPreviewPost = useCallback((scheduledTime?: Date) => {
+    if (!previewPost) return;
+    
+    const newPost: GeneratedPost = {
+      id: `post-${Date.now()}`,
+      content: previewPost.content,
+      suggestedTime: (scheduledTime || new Date()).toISOString(),
+      reasoning: "Created from preview",
+      scheduledDateTime: (scheduledTime || new Date()).toISOString(),
+      imageUrl: previewPost.imageUrl,
+      status: scheduledTime ? 'scheduled' : 'draft',
+    };
+    
+    setGeneratedPosts(prev => [newPost, ...prev]);
+    setPreviewPost(null);
+    toast.success(scheduledTime ? "Post scheduled!" : "Post created!");
+    
+    return newPost;
+  }, [previewPost]);
+
+  // Clear preview
+  const clearPreview = useCallback(() => {
+    setPreviewPost(null);
+  }, []);
+
   return {
     messages,
     isLoading,
     generatedPosts,
+    previewPost,
     sendMessage,
     resetChat,
     clearHistory,
@@ -387,5 +442,7 @@ export function useAgentChat(
     regeneratePost,
     generateImageForPost,
     setGeneratedPosts,
+    confirmPreviewPost,
+    clearPreview,
   };
 }

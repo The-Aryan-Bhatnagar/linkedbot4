@@ -16,12 +16,13 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useAgentChat } from "@/hooks/useAgentChat";
+import { useAgentChat, ChatMessage } from "@/hooks/useAgentChat";
 import { useAgents } from "@/hooks/useAgents";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { PostPreviewCard } from "@/components/agents/PostPreviewCard";
 import { ExtensionActivityLog, useExtensionActivityLog } from "@/components/agents/ExtensionActivityLog";
 import { ImageUploadPanel } from "@/components/agents/ImageUploadPanel";
+import { SchedulingDialog } from "@/components/agents/SchedulingDialog";
 import { toast } from "sonner";
 import { useLinkedBotExtension } from "@/hooks/useLinkedBotExtension";
 import { useImageUpload } from "@/hooks/useImageUpload";
@@ -82,13 +83,20 @@ const AgentChatPage = () => {
     messages,
     isLoading,
     generatedPosts,
+    previewPost,
     sendMessage,
     resetChat,
     updatePost,
     deletePost,
     regeneratePost,
     generateImageForPost,
+    confirmPreviewPost,
+    clearPreview,
   } = useAgentChat(currentAgentSettings, currentUserContext);
+
+  // Scheduling dialog state
+  const [showSchedulingDialog, setShowSchedulingDialog] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
 
   // Extension hook for posting to LinkedIn
   const {
@@ -322,6 +330,19 @@ const AgentChatPage = () => {
                           : "bg-muted"
                       }`}
                     >
+                      {/* Display uploaded images as thumbnails */}
+                      {message.role === "user" && message.uploadedImages && message.uploadedImages.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {message.uploadedImages.map((imgUrl, imgIdx) => (
+                            <img
+                              key={imgIdx}
+                              src={imgUrl}
+                              alt={`Uploaded image ${imgIdx + 1}`}
+                              className="w-20 h-20 object-cover rounded-lg border border-primary-foreground/20"
+                            />
+                          ))}
+                        </div>
+                      )}
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                     </div>
                   </motion.div>
@@ -488,6 +509,33 @@ const AgentChatPage = () => {
             )}
           </div>
         </div>
+
+        {/* Scheduling Dialog */}
+        <SchedulingDialog
+          open={showSchedulingDialog || !!previewPost}
+          previewPost={previewPost}
+          onPostNow={() => {
+            setIsScheduling(true);
+            const post = confirmPreviewPost();
+            if (post) {
+              postSingleNow(post);
+            }
+            setShowSchedulingDialog(false);
+            setIsScheduling(false);
+          }}
+          onSchedule={(date, time) => {
+            setIsScheduling(true);
+            confirmPreviewPost(date);
+            setShowSchedulingDialog(false);
+            setIsScheduling(false);
+            toast.success(`Post scheduled for ${format(date, "MMM d")} at ${time}`);
+          }}
+          onCancel={() => {
+            clearPreview();
+            setShowSchedulingDialog(false);
+          }}
+          isLoading={isScheduling}
+        />
       </div>
     </DashboardLayout>
   );

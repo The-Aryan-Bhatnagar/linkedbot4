@@ -726,13 +726,15 @@ What would you like to create today?`;
 
       case "create_posts_from_images": {
         const imageUrls: string[] = intent.data?.imageUrls || [];
-        console.log("🖼️ Creating posts for", imageUrls.length, "images");
+        console.log("🖼️ Creating PREVIEW for", imageUrls.length, "images");
         
         // Clean the message to extract any user instructions
         const cleanMessage = message.replace(/\[UPLOADED_IMAGES:[^\]]+\]/g, "").trim();
         const userInstructions = cleanMessage || "Create an engaging LinkedIn post for this image";
         
-        // Generate a post for each image
+        // Generate preview posts (don't add to generatedPosts yet - just show preview)
+        const previewPosts: any[] = [];
+        
         for (let i = 0; i < imageUrls.length; i++) {
           const imageUrl = imageUrls[i];
           const postIndex = i + 1;
@@ -759,28 +761,36 @@ Make each post unique if there are multiple images.`;
             const postContent = extractPostContent(aiResponse);
             
             if (postContent) {
-              // Schedule each post at different times (spread across the day)
-              const scheduledTime = new Date();
-              scheduledTime.setHours(scheduledTime.getHours() + (i * 2) + 1); // Space posts 2 hours apart
-              
-              posts.push({
-                id: `post-${Date.now()}-${i}`,
+              previewPosts.push({
                 content: postContent,
-                suggestedTime: scheduledTime.toISOString(),
-                reasoning: `Post ${postIndex} of ${imageUrls.length} - created from uploaded image`,
-                scheduledDateTime: scheduledTime.toISOString(),
-                generateImage: false, // Image already provided
-                imageUrl: imageUrl, // Attach the uploaded image
-                imagePrompt: null,
+                imageUrl: imageUrl,
+                agentType: agentType,
               });
             }
           } catch (error) {
-            console.error(`Error generating post for image ${postIndex}:`, error);
+            console.error(`Error generating preview for image ${postIndex}:`, error);
           }
         }
         
-        if (posts.length > 0) {
-          response = `🖼️ Created ${posts.length} post(s) for your uploaded images!\n\nEach post has been paired with its image and scheduled at different times to maximize engagement.\n\nYou can:\n• Edit any post content\n• Change the schedule\n• Post now or schedule for later`;
+        if (previewPosts.length > 0) {
+          // Return preview - don't auto-create posts
+          // Frontend will show preview and ask for scheduling confirmation
+          const firstPreview = previewPosts[0];
+          
+          response = `📸 Here's a preview of your post:\n\n---\n${firstPreview.content}\n---\n\n📅 **When would you like to schedule this?**\n• Click the schedule button below to pick a date/time\n• Or say "post now" to publish immediately\n• Or say "edit" to modify the content`;
+          
+          // Return preview data for frontend to handle
+          return new Response(
+            JSON.stringify({
+              type: "post_preview",
+              message: response,
+              previewPost: firstPreview,
+              allPreviews: previewPosts,
+              posts: [], // Don't auto-create posts
+              action: "show_scheduling_dialog",
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         } else {
           response = "I had trouble creating posts for your images. Please try again or provide more specific instructions.";
         }
