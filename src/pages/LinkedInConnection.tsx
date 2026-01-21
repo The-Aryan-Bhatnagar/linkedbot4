@@ -3,12 +3,14 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useLinkedBotExtension } from "@/hooks/useLinkedBotExtension";
 import { useLinkedInAnalytics } from "@/hooks/useLinkedInAnalytics";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { LinkedInConnectionModal } from "@/components/linkedin/LinkedInConnectionModal";
 import {
   Wifi,
   WifiOff,
@@ -22,6 +24,7 @@ import {
   Hash,
   Smile,
   FileText,
+  Linkedin,
 } from "lucide-react";
 
 const LinkedInConnectionPage = () => {
@@ -30,6 +33,7 @@ const LinkedInConnectionPage = () => {
     isInstalled,
     isConnected,
     isLoading: extensionLoading,
+    extensionId,
     connectExtension,
     disconnectExtension,
     checkExtension,
@@ -42,10 +46,15 @@ const LinkedInConnectionPage = () => {
     saveScannedPosts,
   } = useLinkedInAnalytics();
 
+  const { profile, fetchProfile } = useUserProfile();
+
   const [scanComplete, setScanComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const hasProfileUrl = Boolean(profile?.linkedin_profile_url);
 
   const handleConnect = async () => {
     setError(null);
@@ -82,6 +91,17 @@ const LinkedInConnectionPage = () => {
   };
 
   const handleScanPosts = async () => {
+    // Check for profile URL first
+    if (!hasProfileUrl) {
+      setShowProfileModal(true);
+      toast({
+        title: "Profile URL required",
+        description: "Please provide your LinkedIn profile URL first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const ext = window.LinkedBotExtension as any;
     if (!ext?.scanPosts) {
       toast({
@@ -264,6 +284,26 @@ const LinkedInConnectionPage = () => {
           </motion.div>
         )}
 
+        {/* Missing Profile URL Banner */}
+        {isConnected && !hasProfileUrl && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <Alert variant="destructive" className="border-warning bg-warning/10 text-warning-foreground">
+              <AlertCircle className="w-4 h-4 text-warning" />
+              <AlertDescription className="flex items-center justify-between">
+                <span className="text-warning">Please provide your LinkedIn profile URL first</span>
+                <Button size="sm" variant="outline" onClick={() => setShowProfileModal(true)} className="ml-4 gap-1.5">
+                  <Linkedin className="w-3.5 h-3.5" />
+                  Add Profile URL
+                </Button>
+              </AlertDescription>
+            </Alert>
+          </motion.div>
+        )}
+
         {/* Post Scanning Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -384,6 +424,21 @@ const LinkedInConnectionPage = () => {
           </Card>
         </motion.div>
       </div>
+
+      {/* LinkedIn Profile URL Modal */}
+      <LinkedInConnectionModal
+        open={showProfileModal}
+        onOpenChange={setShowProfileModal}
+        extensionId={extensionId}
+        onConnect={connectExtension}
+        onSuccess={async () => {
+          await fetchProfile();
+          toast({
+            title: "Profile URL saved",
+            description: "Your LinkedIn profile URL has been saved. You can now scan your posts.",
+          });
+        }}
+      />
     </DashboardLayout>
   );
 };
