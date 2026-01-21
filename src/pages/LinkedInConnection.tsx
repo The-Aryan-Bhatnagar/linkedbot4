@@ -46,13 +46,14 @@ const LinkedInConnectionPage = () => {
     saveScannedPosts,
   } = useLinkedInAnalytics();
 
-  const { profile, fetchProfile } = useUserProfile();
+  const { profile, isLoading: profileLoading, fetchProfile } = useUserProfile();
 
   const [scanComplete, setScanComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [skipProfileCheck, setSkipProfileCheck] = useState(false);
 
   const hasProfileUrl = Boolean(profile?.linkedin_profile_url);
 
@@ -90,9 +91,9 @@ const LinkedInConnectionPage = () => {
     }
   };
 
-  const handleScanPosts = async () => {
-    // Check for profile URL first
-    if (!hasProfileUrl) {
+  const handleScanPosts = async (forceSkipCheck = false) => {
+    // Check for profile URL first (skip if called after modal success)
+    if (!hasProfileUrl && !forceSkipCheck && !skipProfileCheck) {
       setShowProfileModal(true);
       toast({
         title: "Profile URL required",
@@ -101,6 +102,8 @@ const LinkedInConnectionPage = () => {
       });
       return;
     }
+    // Reset skip flag after use
+    setSkipProfileCheck(false);
 
     const ext = window.LinkedBotExtension as any;
     if (!ext?.scanPosts) {
@@ -284,8 +287,8 @@ const LinkedInConnectionPage = () => {
           </motion.div>
         )}
 
-        {/* Missing Profile URL Banner */}
-        {isConnected && !hasProfileUrl && (
+        {/* Missing Profile URL Banner - only show after profile is loaded */}
+        {isConnected && !profileLoading && !hasProfileUrl && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -330,7 +333,7 @@ const LinkedInConnectionPage = () => {
                 </Alert>
               )}
               <Button
-                onClick={handleScanPosts}
+                onClick={() => handleScanPosts()}
                 disabled={!isConnected || scanning || isScanning}
                 className="gap-2"
               >
@@ -438,10 +441,11 @@ const LinkedInConnectionPage = () => {
             description: "Starting post scan automatically...",
           });
           // Auto-trigger post scanning after profile URL is saved
+          // Use forceSkipCheck=true since we just saved the URL
           setTimeout(() => {
             const ext = window.LinkedBotExtension as any;
             if (ext?.scanPosts) {
-              handleScanPosts();
+              handleScanPosts(true);
             }
           }, 500);
         }}

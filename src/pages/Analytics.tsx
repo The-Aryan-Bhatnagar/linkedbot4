@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useLinkedBotExtension } from "@/hooks/useLinkedBotExtension";
 import { useLinkedInAnalytics } from "@/hooks/useLinkedInAnalytics";
+import { useUserProfile } from "@/hooks/useUserProfile";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -42,6 +43,7 @@ const calculateEngagementRate = (views: number, likes: number, comments: number,
 const AnalyticsPage = () => {
   const { toast } = useToast();
   const { isConnected, isInstalled } = useLinkedBotExtension();
+  const { profile: userProfile, isLoading: profileLoading } = useUserProfile();
   const {
     profile,
     posts,
@@ -53,6 +55,8 @@ const AnalyticsPage = () => {
     syncAnalytics,
   } = useLinkedInAnalytics();
 
+  const hasProfileUrl = Boolean(userProfile?.linkedin_profile_url);
+
   const [period, setPeriod] = useState("30");
 
   const handleSyncAnalytics = async () => {
@@ -60,6 +64,15 @@ const AnalyticsPage = () => {
       toast({
         title: "Extension not connected",
         description: "Please connect the extension first from the LinkedIn Connection page.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!hasProfileUrl && !profileLoading) {
+      toast({
+        title: "Profile URL required",
+        description: "Please add your LinkedIn profile URL from the LinkedIn Connection page first.",
         variant: "destructive",
       });
       return;
