@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { LinkedInProfileInput, validateLinkedInUrl } from "@/components/linkedin/LinkedInProfileInput";
 import {
   Select,
   SelectContent,
@@ -29,8 +30,10 @@ import {
   Lock,
   Crown,
   Calendar,
+  AlertCircle,
 } from "lucide-react";
 import { format } from "date-fns";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const SettingsPage = () => {
   const { profile, isLoading, saveProfile } = useUserProfile();
@@ -46,9 +49,13 @@ const SettingsPage = () => {
   const [background, setBackground] = useState(profile?.background || "");
   const [preferredTone, setPreferredTone] = useState(profile?.preferred_tone || "");
   const [postFrequency, setPostFrequency] = useState(profile?.post_frequency || "");
+  const [linkedinUrl, setLinkedinUrl] = useState(profile?.linkedin_profile_url || "");
+
+  // Check if LinkedIn URL is locked
+  const isLinkedInLocked = profile?.linkedin_profile_url_locked || !!profile?.linkedin_profile_url;
 
   // Update local state when profile loads
-  useState(() => {
+  useEffect(() => {
     if (profile) {
       setName(profile.name || "");
       setPhoneNumber(profile.phone_number || "");
@@ -58,13 +65,27 @@ const SettingsPage = () => {
       setBackground(profile.background || "");
       setPreferredTone(profile.preferred_tone || "");
       setPostFrequency(profile.post_frequency || "");
+      setLinkedinUrl(profile.linkedin_profile_url || "");
     }
-  });
+  }, [profile]);
 
   const handleSave = async () => {
+    // Validate LinkedIn URL if it's being set
+    if (linkedinUrl && !isLinkedInLocked) {
+      const validation = validateLinkedInUrl(linkedinUrl);
+      if (!validation.isValid) {
+        toast({
+          title: "Invalid LinkedIn URL",
+          description: validation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
-      const success = await saveProfile({
+      const profileData: any = {
         name,
         phone_number: phoneNumber,
         city,
@@ -73,7 +94,15 @@ const SettingsPage = () => {
         background,
         preferred_tone: preferredTone,
         post_frequency: postFrequency,
-      });
+      };
+
+      // Only include LinkedIn URL if not locked
+      if (!isLinkedInLocked && linkedinUrl) {
+        profileData.linkedin_profile_url = linkedinUrl;
+        profileData.linkedin_profile_url_locked = true; // Lock after first save
+      }
+
+      const success = await saveProfile(profileData);
 
       if (success) {
         toast({
@@ -153,24 +182,41 @@ const SettingsPage = () => {
                 </div>
               </div>
 
-              {/* LinkedIn URL (Locked) */}
+              {/* LinkedIn URL */}
               <div>
-                <Label htmlFor="linkedin" className="flex items-center gap-2">
-                  <Linkedin className="w-4 h-4 text-[#0A66C2]" />
-                  LinkedIn Profile URL
-                </Label>
-                <div className="relative mt-1.5">
-                  <Input
-                    id="linkedin"
-                    value={profile?.linkedin_profile_url || ""}
-                    disabled
-                    className="pr-10 bg-muted"
-                  />
-                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  This URL is locked and cannot be changed for security reasons.
-                </p>
+                {isLinkedInLocked ? (
+                  <>
+                    <Label htmlFor="linkedin" className="flex items-center gap-2">
+                      <Linkedin className="w-4 h-4 text-[#0A66C2]" />
+                      LinkedIn Profile URL
+                    </Label>
+                    <div className="relative mt-1.5">
+                      <Input
+                        id="linkedin"
+                        value={profile?.linkedin_profile_url || ""}
+                        disabled
+                        className="pr-10 bg-muted"
+                      />
+                      <Lock className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      This URL is locked and cannot be changed for security reasons.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <LinkedInProfileInput
+                      value={linkedinUrl}
+                      onChange={setLinkedinUrl}
+                    />
+                    <Alert className="mt-3 border-warning/50 bg-warning/10">
+                      <AlertCircle className="w-4 h-4 text-warning" />
+                      <AlertDescription className="text-xs text-warning">
+                        <strong>Important:</strong> Once saved, this URL cannot be changed. All posting and scraping will happen on this profile only.
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                )}
               </div>
 
               {/* Contact & Location */}

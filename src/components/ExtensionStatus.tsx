@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { LinkedInConnectionModal } from '@/components/linkedin/LinkedInConnectionModal';
 
 const DEFAULT_TEST_POST = `🧪 Testing LinkedBot Extension!
 
@@ -35,16 +36,17 @@ export const ExtensionStatus: React.FC = () => {
   } = useLinkedBotExtension();
 
   const [showTestDialog, setShowTestDialog] = useState(false);
+  const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [testContent, setTestContent] = useState(DEFAULT_TEST_POST);
   const [isTesting, setIsTesting] = useState(false);
 
-  const handleConnect = async () => {
-    try {
-      await connectExtension();
-      toast.success('Extension connected successfully!');
-    } catch (error) {
-      toast.error('Failed to connect extension. Please try again.');
-    }
+  const handleConnect = () => {
+    setShowConnectionModal(true);
+  };
+
+  const handleConnectionSuccess = () => {
+    // Optionally trigger post scan or other actions
+    checkExtension();
   };
 
   const handleDisconnect = async () => {
@@ -133,27 +135,37 @@ export const ExtensionStatus: React.FC = () => {
 
   if (!isConnected) {
     return (
-      <Card className="bg-card border-border">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="flex-shrink-0">
-              <XCircle className="w-8 h-8 text-orange-500" />
+      <>
+        <Card className="bg-card border-border">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0">
+                <XCircle className="w-8 h-8 text-orange-500" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Connect Extension
+                </h3>
+                <p className="text-muted-foreground mb-4">
+                  Your Chrome extension is installed but not connected. Click below to link your LinkedIn profile and activate automatic posting.
+                </p>
+                <Button onClick={handleConnect}>
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Connect Extension
+                </Button>
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-foreground mb-2">
-                Connect Extension
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Your Chrome extension is installed but not connected. Click below to activate automatic posting.
-              </p>
-              <Button onClick={handleConnect}>
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Connect Extension
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+        
+        <LinkedInConnectionModal
+          open={showConnectionModal}
+          onOpenChange={setShowConnectionModal}
+          extensionId={extensionId}
+          onConnect={connectExtension}
+          onSuccess={handleConnectionSuccess}
+        />
+      </>
     );
   }
 

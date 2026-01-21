@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { ExtensionStatus } from "@/components/ExtensionStatus";
+import { MissingProfileBanner } from "@/components/linkedin/MissingProfileBanner";
 import { useLinkedBotExtension } from "@/hooks/useLinkedBotExtension";
 import { useLinkedInAnalytics } from "@/hooks/useLinkedInAnalytics";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -135,6 +136,17 @@ const DashboardPage = () => {
         >
           <ExtensionStatus />
         </motion.div>
+
+        {/* Missing Profile URL Banner - Show if extension connected but no profile URL */}
+        {isConnected && !profile?.linkedin_profile_url && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <MissingProfileBanner />
+          </motion.div>
+        )}
         
         {/* Header */}
         <motion.div

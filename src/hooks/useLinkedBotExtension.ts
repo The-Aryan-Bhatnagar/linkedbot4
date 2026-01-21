@@ -319,6 +319,8 @@ declare global {
       sendPendingPosts: (posts: { id: string; content: string; photo_url?: string; scheduled_time: string }[]) => void;
       postNow: (post: { id: string; content: string; photo_url?: string; scheduled_time: string }) => Promise<{ success: boolean; linkedinPostId?: string; error?: string }>;
       onEvent: (callback: (event: string, data: unknown) => void) => void;
+      // Profile URL method
+      saveProfileUrl?: (url: string) => Promise<{ success: boolean; error?: string }>;
       // Analytics methods
       scrapeAnalytics: () => Promise<{ 
         success: boolean; 
