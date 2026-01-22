@@ -416,12 +416,29 @@ export function useAgentChat(
     }
   }, [generatedPosts]);
 
+  // Validate post content before saving
+  const isValidPostContent = (content: string): boolean => {
+    if (!content || content.trim().length < 20) return false;
+    // Reject JSON-looking content (AI hallucinations)
+    if (content.trim().startsWith('{') && content.includes('"action"')) return false;
+    if (content.includes('"action_input"')) return false;
+    if (content.includes('dalle.text2im')) return false;
+    return true;
+  };
+
   // Save post to database with tracking ID
   const savePostToDatabase = useCallback(async (
     post: GeneratedPost,
     scheduledTime?: Date
   ): Promise<GeneratedPost | null> => {
     try {
+      // Validate content first
+      if (!isValidPostContent(post.content)) {
+        toast.error("Invalid post content. Please generate a new post.");
+        console.error("❌ Rejected invalid post content:", post.content.substring(0, 100));
+        return null;
+      }
+
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         toast.error("Please log in to save posts");
