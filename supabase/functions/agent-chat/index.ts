@@ -559,8 +559,103 @@ function humanizePost(content: string): string {
 }
 
 // ============================================
-// GENERATE IMAGE PROMPT FROM POST CONTENT
+// PARSE SCHEDULE TIME (IST)
 // ============================================
+function parseScheduleTimeIST(timeText: string): string | null {
+  const lower = timeText.toLowerCase().trim();
+  const now = new Date();
+  
+  // Add IST offset (5 hours 30 minutes)
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istNow = new Date(now.getTime() + istOffset);
+  
+  let result = new Date(istNow);
+  result.setSeconds(0, 0);
+  
+  // Handle relative day references
+  if (lower.includes('tomorrow')) {
+    result.setDate(result.getDate() + 1);
+  }
+  
+  // Extract time (e.g., "3:42 pm", "15:30", "3pm")
+  let hours = 9; // Default to 9am
+  let minutes = 0;
+  
+  // Match patterns like "3:42 pm", "3:42pm", "15:30"
+  const timeMatch = lower.match(/(\d{1,2}):(\d{2})\s*(am|pm)?/i);
+  if (timeMatch) {
+    hours = parseInt(timeMatch[1]);
+    minutes = parseInt(timeMatch[2]);
+    const ampm = timeMatch[3]?.toLowerCase();
+    
+    if (ampm === 'pm' && hours < 12) hours += 12;
+    if (ampm === 'am' && hours === 12) hours = 0;
+  } else {
+    // Match patterns like "3pm", "3 pm"
+    const simpleTimeMatch = lower.match(/(\d{1,2})\s*(am|pm)/i);
+    if (simpleTimeMatch) {
+      hours = parseInt(simpleTimeMatch[1]);
+      const ampm = simpleTimeMatch[2].toLowerCase();
+      
+      if (ampm === 'pm' && hours < 12) hours += 12;
+      if (ampm === 'am' && hours === 12) hours = 0;
+    }
+  }
+  
+  // Handle relative times of day
+  if (lower.includes('morning') && !timeMatch) {
+    hours = 9;
+    minutes = 0;
+  } else if (lower.includes('afternoon') && !timeMatch) {
+    hours = 14;
+    minutes = 0;
+  } else if (lower.includes('evening') && !timeMatch) {
+    hours = 18;
+    minutes = 0;
+  }
+  
+  result.setHours(hours, minutes, 0, 0);
+  
+  // Convert back to UTC for storage
+  const utcTime = new Date(result.getTime() - istOffset);
+  
+  // If the time is in the past for today, return null or adjust
+  if (utcTime <= now && !lower.includes('tomorrow')) {
+    // If time is past, assume tomorrow
+    utcTime.setDate(utcTime.getDate() + 1);
+  }
+  
+  return utcTime.toISOString();
+}
+
+function formatScheduledTimeIST(isoString: string): string {
+  const date = new Date(isoString);
+  const istOffset = 5.5 * 60 * 60 * 1000;
+  const istDate = new Date(date.getTime() + istOffset);
+  
+  const now = new Date();
+  const istNow = new Date(now.getTime() + istOffset);
+  const tomorrow = new Date(istNow);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  const isToday = istDate.toDateString() === istNow.toDateString();
+  const isTomorrow = istDate.toDateString() === tomorrow.toDateString();
+  
+  const timeStr = istDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  
+  if (isToday) {
+    return `Today at ${timeStr} IST`;
+  } else if (isTomorrow) {
+    return `Tomorrow at ${timeStr} IST`;
+  } else {
+    return istDate.toLocaleDateString('en-US', { 
+      weekday: 'short', 
+      month: 'short', 
+      day: 'numeric',
+    }) + ` at ${timeStr} IST`;
+  }
+}
+
 function generateImagePromptFromPost(postContent: string): string {
   const lines = postContent.split('\n').filter(line => line.trim().length > 0);
   const firstLine = lines[0]?.trim() || 'Professional business content';
@@ -704,6 +799,26 @@ function detectIntent(message: string, uploadedImages?: string[]): { type: strin
   
   if (confirmPatterns.some(p => p.test(lower))) {
     return { type: "confirm_plan" };
+  }
+
+  // "Do it yourself" - auto execute
+  if (/do it yourself|just do it|post it for me|you do it|schedule it yourself/i.test(lower)) {
+    // Check if there's a time mentioned
+    const timePatterns = [
+      /\d{1,2}:\d{2}\s*(am|pm)?/i,
+      /\d{1,2}\s*(am|pm)/i,
+      /today/i,
+      /tomorrow/i,
+      /morning/i,
+      /afternoon/i,
+      /evening/i,
+    ];
+    
+    const hasTime = timePatterns.some(pattern => pattern.test(lower));
+    if (hasTime) {
+      return { type: "auto_schedule", data: { timeText: message } };
+    }
+    return { type: "post_now" };
   }
 
   // Show post
@@ -1022,13 +1137,36 @@ Or would you prefer different topics/timing?`;
         break;
       }
 
-      case "schedule_post": {
+      case "schedule_post":
+      case "auto_schedule": {
         if (!generatedPosts || generatedPosts.length === 0) {
           response = "I don't have any posts to schedule. Would you like me to create one first?\n\nJust say 'write a post about [topic]' 📝";
         } else {
           const timeText = intent.data?.timeText || message;
-          response = `Perfect! I'll schedule your post for ${timeText}. 📅\n\nClick the **Post Now** button to confirm and send it to the extension.`;
-          action = "schedule_post";
+          
+          // Parse the time for auto-scheduling
+          const parsedTime = parseScheduleTimeIST(timeText);
+          
+          if (parsedTime) {
+            const postToSchedule = generatedPosts[0];
+            response = `Got it! Scheduling your post for ${formatScheduledTimeIST(parsedTime)}... 🚀\n\nSending to extension now!`;
+            action = "auto_schedule";
+            
+            // Return with parsed time and post data
+            return new Response(
+              JSON.stringify({
+                type: "auto_schedule",
+                message: response,
+                posts: [],
+                action: "auto_schedule",
+                scheduledTime: parsedTime,
+                postToSchedule: postToSchedule,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
+          } else {
+            response = `I couldn't parse that time. Try saying "today at 3:30 PM" or "tomorrow morning".\n\nOr click the **Post Now** button to publish immediately.`;
+          }
         }
         break;
       }
@@ -1037,7 +1175,7 @@ Or would you prefer different topics/timing?`;
         if (!generatedPosts || generatedPosts.length === 0) {
           response = "I don't have any posts ready. Would you like me to create one first?\n\nJust say 'write a post about [topic]' 📝";
         } else {
-          response = `When would you like to post this?\n\nYou can say:\n• **"post it now"** or **"right now"** to publish immediately\n• **"post it at 3:30pm today"** to schedule for later\n• **"post it tomorrow at 2pm"** for next day\n\nOr just click the **Post Now** button to publish immediately.`;
+          response = `When would you like to post this?\n\nYou can say:\n• **"post it now"** to publish immediately\n• **"post it at 3:30pm today"** to schedule\n• **"tomorrow at 2pm"** for next day\n\nI'll handle everything automatically!`;
         }
         break;
       }

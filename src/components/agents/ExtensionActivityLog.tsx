@@ -14,7 +14,7 @@ import {
 export interface ActivityEntry {
   id: string;
   timestamp: Date;
-  status: "sending" | "queued" | "published" | "failed";
+  status: "sending" | "queued" | "scheduled" | "published" | "failed";
   message: string;
   postId?: string;
 }
@@ -74,6 +74,7 @@ const statusConfig: Record<
 > = {
   sending: { icon: RefreshCw, color: "text-secondary", label: "Sending" },
   queued: { icon: Clock, color: "text-amber-500", label: "Queued" },
+  scheduled: { icon: Clock, color: "text-primary", label: "Scheduled" },
   published: { icon: CheckCircle2, color: "text-emerald-500", label: "Published" },
   failed: { icon: AlertCircle, color: "text-destructive", label: "Failed" },
 };

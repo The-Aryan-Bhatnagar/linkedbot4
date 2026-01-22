@@ -3,6 +3,26 @@
 // ============================================================================
 
 /**
+ * Generate unique tracking ID for a post
+ */
+export function generatePostTrackingId(): string {
+  return `LPID_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Embed tracking ID invisibly in post content using zero-width characters
+ */
+export function embedTrackingId(content: string, trackingId: string): string {
+  // Use zero-width space to hide tracking ID at end of post
+  const encoded = trackingId
+    .split('')
+    .map(char => String.fromCharCode(0x200B) + char)
+    .join('');
+  
+  return `${content}\n\n${encoded}`;
+}
+
+/**
  * Clean post content by removing markdown and fixing spacing
  */
 export function cleanPostContent(content: string): string {
@@ -25,8 +45,8 @@ export function cleanPostContent(content: string): string {
     .replace(/^\s*\d+[\.)]\s+/gm, '')        // Numbered lists 1. 1)
     .replace(/^\s*[a-z][\.)]\s+/gm, '')      // Letter lists a. a)
     
-    // Fix excessive spacing
-    .replace(/\n{4,}/g, '\n\n\n')            // Max 2 blank lines
+    // Fix excessive spacing - MAX 1 blank line between paragraphs
+    .replace(/\n{3,}/g, '\n\n')              // Max 1 blank line
     .replace(/[ \t]{2,}/g, ' ')              // Multiple spaces → single
     .replace(/^\s+/gm, '')                   // Remove leading whitespace
     .replace(/\s+$/gm, '')                   // Remove trailing whitespace
