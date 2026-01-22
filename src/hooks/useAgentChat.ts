@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { generatePostTrackingId, embedTrackingId, parseScheduleTime } from "@/lib/postHelpers";
 
 export interface ChatMessage {
   role: "user" | "assistant";
@@ -25,8 +26,10 @@ export interface GeneratedPost {
   imagePrompt?: string;
   imageUrl?: string;
   isGeneratingImage?: boolean;
-  status?: 'draft' | 'scheduled' | 'published';
+  status?: 'draft' | 'scheduled' | 'published' | 'queued_in_extension';
   scheduledTime?: string; // ISO string for when to post
+  trackingId?: string;
+  dbId?: string; // Database ID after saving
 }
 
 export interface AgentSettings {
@@ -134,7 +137,8 @@ function loadStoredPosts(): GeneratedPost[] {
 
 export function useAgentChat(
   agentSettings: AgentSettings,
-  userContext: UserContext = {}
+  userContext: UserContext = {},
+  agentId?: string | null
 ) {
   // Initialize with stored data or welcome message
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -180,7 +184,7 @@ export function useAgentChat(
     }
   }, [generatedPosts]);
 
-  const sendMessage = useCallback(async (message: string, options?: { generateImage?: boolean; uploadedImages?: string[] }): Promise<void> => {
+  const sendMessage = useCallback(async (message: string, options?: { generateImage?: boolean; uploadedImages?: string[] }): Promise<any> => {
     if (!message.trim() || isLoading) return;
 
     console.log("=== useAgentChat.sendMessage ===");
@@ -240,7 +244,13 @@ export function useAgentChat(
           agentType: data.previewPost.agentType,
         });
         // Don't add to generatedPosts yet - wait for user confirmation
-        return;
+        return data;
+      }
+
+      // Handle auto_schedule response - return data for parent to handle
+      if (data.type === "auto_schedule" && data.postToSchedule && data.scheduledTime) {
+        console.log("📅 Auto-schedule response received");
+        return data;
       }
 
       // If posts were generated directly, add them
@@ -289,6 +299,8 @@ export function useAgentChat(
         }
       }
 
+      return data;
+
     } catch (error: any) {
       console.error("Chat error:", error);
       setMessages(prev => [...prev, { 
@@ -297,6 +309,7 @@ export function useAgentChat(
         timestamp: new Date(),
       }]);
       toast.error(error.message || "Failed to send message");
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -403,9 +416,62 @@ export function useAgentChat(
     }
   }, [generatedPosts]);
 
+  // Save post to database with tracking ID
+  const savePostToDatabase = useCallback(async (
+    post: GeneratedPost,
+    scheduledTime?: Date
+  ): Promise<GeneratedPost | null> => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast.error("Please log in to save posts");
+        return null;
+      }
+
+      // Generate tracking ID
+      const trackingId = generatePostTrackingId();
+      const contentWithTracking = embedTrackingId(post.content, trackingId);
+
+      const { data: savedPost, error } = await supabase
+        .from("posts")
+        .insert({
+          user_id: user.id,
+          content: post.content, // Original for display
+          content_with_tracking: contentWithTracking, // For posting with tracking
+          tracking_id: trackingId,
+          photo_url: post.imageUrl || null,
+          status: scheduledTime ? 'scheduled' : 'draft',
+          scheduled_time: scheduledTime?.toISOString() || null,
+          agent_id: agentId || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Save post error:", error);
+        throw error;
+      }
+
+      console.log("✅ Post saved to database:", savedPost.id);
+      
+      // Return updated post with DB info
+      return {
+        ...post,
+        dbId: savedPost.id,
+        trackingId: trackingId,
+        status: scheduledTime ? 'scheduled' : 'draft',
+        scheduledTime: scheduledTime?.toISOString(),
+      };
+    } catch (err) {
+      console.error("Failed to save post:", err);
+      toast.error("Failed to save post to database");
+      return null;
+    }
+  }, [agentId]);
+
   // Confirm preview post and add to generated posts
-  const confirmPreviewPost = useCallback((scheduledTime?: Date) => {
-    if (!previewPost) return;
+  const confirmPreviewPost = useCallback(async (scheduledTime?: Date) => {
+    if (!previewPost) return null;
     
     const newPost: GeneratedPost = {
       id: `post-${Date.now()}`,
@@ -417,12 +483,21 @@ export function useAgentChat(
       status: scheduledTime ? 'scheduled' : 'draft',
     };
     
+    // Save to database
+    const savedPost = await savePostToDatabase(newPost, scheduledTime);
+    
+    if (savedPost) {
+      setGeneratedPosts(prev => [savedPost, ...prev]);
+      setPreviewPost(null);
+      toast.success(scheduledTime ? "Post scheduled!" : "Post created!");
+      return savedPost;
+    }
+    
+    // Fallback to local-only if DB save fails
     setGeneratedPosts(prev => [newPost, ...prev]);
     setPreviewPost(null);
-    toast.success(scheduledTime ? "Post scheduled!" : "Post created!");
-    
     return newPost;
-  }, [previewPost]);
+  }, [previewPost, savePostToDatabase]);
 
   // Clear preview
   const clearPreview = useCallback(() => {
@@ -444,5 +519,6 @@ export function useAgentChat(
     setGeneratedPosts,
     confirmPreviewPost,
     clearPreview,
+    savePostToDatabase,
   };
 }

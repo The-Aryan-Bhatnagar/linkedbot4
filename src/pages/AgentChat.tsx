@@ -92,7 +92,8 @@ const AgentChatPage = () => {
     generateImageForPost,
     confirmPreviewPost,
     clearPreview,
-  } = useAgentChat(currentAgentSettings, currentUserContext);
+    savePostToDatabase,
+  } = useAgentChat(currentAgentSettings, currentUserContext, agentId);
 
   // Scheduling dialog state
   const [showSchedulingDialog, setShowSchedulingDialog] = useState(false);
@@ -226,7 +227,48 @@ const AgentChatPage = () => {
       setShowImageUpload(false);
     }
 
-    await sendMessage(finalMessage, { generateImage: generatePhoto, uploadedImages: imageUrls });
+    const response = await sendMessage(finalMessage, { generateImage: generatePhoto, uploadedImages: imageUrls });
+    
+    // Handle auto_schedule response - automatically save and send to extension
+    if (response?.type === "auto_schedule" && response.postToSchedule && response.scheduledTime) {
+      console.log("🚀 Auto-scheduling post:", response);
+      
+      const postToSchedule = response.postToSchedule;
+      const scheduledTime = new Date(response.scheduledTime);
+      
+      // Save to database
+      const savedPost = await savePostToDatabase({
+        id: postToSchedule.id,
+        content: postToSchedule.content,
+        suggestedTime: postToSchedule.suggestedTime || scheduledTime.toISOString(),
+        reasoning: postToSchedule.reasoning || "Auto-scheduled",
+        scheduledDateTime: scheduledTime.toISOString(),
+        imageUrl: postToSchedule.imageUrl,
+        imagePrompt: postToSchedule.imagePrompt,
+        status: 'scheduled',
+      }, scheduledTime);
+      
+      if (savedPost) {
+        // Send to extension immediately
+        addActivityEntry("sending", `Scheduling for ${format(scheduledTime, 'MMM d, h:mm a')}...`, savedPost.id);
+        
+        const result = await sendPendingPosts([{
+          id: savedPost.dbId || savedPost.id,
+          content: savedPost.content,
+          photo_url: savedPost.imageUrl,
+          scheduled_time: savedPost.scheduledTime || scheduledTime.toISOString(),
+        }]);
+        
+        if (result.success) {
+          addActivityEntry("scheduled", `Scheduled for ${format(scheduledTime, 'MMM d, h:mm a')}`, savedPost.id);
+          toast.success(`✅ Post scheduled for ${format(scheduledTime, 'MMM d, h:mm a')}!`);
+          updatePost(savedPost.id, { status: 'queued_in_extension' });
+        } else {
+          addActivityEntry("failed", result.error || "Failed to send to extension", savedPost.id);
+          toast.error(result.error || "Failed to send to extension");
+        }
+      }
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -514,18 +556,31 @@ const AgentChatPage = () => {
         <SchedulingDialog
           open={showSchedulingDialog || !!previewPost}
           previewPost={previewPost}
-          onPostNow={() => {
+          onPostNow={async () => {
             setIsScheduling(true);
-            const post = confirmPreviewPost();
+            const post = await confirmPreviewPost();
             if (post) {
-              postSingleNow(post);
+              await postSingleNow(post);
             }
             setShowSchedulingDialog(false);
             setIsScheduling(false);
           }}
-          onSchedule={(date, time) => {
+          onSchedule={async (date, time) => {
             setIsScheduling(true);
-            confirmPreviewPost(date);
+            const post = await confirmPreviewPost(date);
+            if (post) {
+              // Send to extension for scheduling
+              const result = await sendPendingPosts([{
+                id: post.dbId || post.id,
+                content: post.content,
+                photo_url: post.imageUrl,
+                scheduled_time: post.scheduledTime || date.toISOString(),
+              }]);
+              
+              if (result.success) {
+                addActivityEntry("scheduled", `Scheduled for ${format(date, 'MMM d')} at ${time}`, post.id);
+              }
+            }
             setShowSchedulingDialog(false);
             setIsScheduling(false);
             toast.success(`Post scheduled for ${format(date, "MMM d")} at ${time}`);

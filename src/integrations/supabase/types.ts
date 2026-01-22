@@ -188,14 +188,62 @@ export type Database = {
         }
         Relationships: []
       }
+      post_analytics_history: {
+        Row: {
+          comments: number | null
+          created_at: string | null
+          id: string
+          likes: number | null
+          post_id: string | null
+          shares: number | null
+          synced_at: string | null
+          user_id: string
+          views: number | null
+        }
+        Insert: {
+          comments?: number | null
+          created_at?: string | null
+          id?: string
+          likes?: number | null
+          post_id?: string | null
+          shares?: number | null
+          synced_at?: string | null
+          user_id: string
+          views?: number | null
+        }
+        Update: {
+          comments?: number | null
+          created_at?: string | null
+          id?: string
+          likes?: number | null
+          post_id?: string | null
+          shares?: number | null
+          synced_at?: string | null
+          user_id?: string
+          views?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_analytics_history_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "posts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       posts: {
         Row: {
           agent_id: string | null
           agent_name: string | null
+          comments_count: number | null
           content: string
+          content_with_tracking: string | null
           created_at: string
           id: string
           last_error: string | null
+          last_synced_at: string | null
+          likes_count: number | null
           linkedin_post_id: string | null
           linkedin_post_url: string | null
           next_retry_at: string | null
@@ -203,17 +251,25 @@ export type Database = {
           posted_at: string | null
           retry_count: number | null
           scheduled_time: string | null
+          sent_to_extension_at: string | null
+          shares_count: number | null
           status: string | null
+          tracking_id: string | null
           updated_at: string
           user_id: string
+          views_count: number | null
         }
         Insert: {
           agent_id?: string | null
           agent_name?: string | null
+          comments_count?: number | null
           content: string
+          content_with_tracking?: string | null
           created_at?: string
           id?: string
           last_error?: string | null
+          last_synced_at?: string | null
+          likes_count?: number | null
           linkedin_post_id?: string | null
           linkedin_post_url?: string | null
           next_retry_at?: string | null
@@ -221,17 +277,25 @@ export type Database = {
           posted_at?: string | null
           retry_count?: number | null
           scheduled_time?: string | null
+          sent_to_extension_at?: string | null
+          shares_count?: number | null
           status?: string | null
+          tracking_id?: string | null
           updated_at?: string
           user_id: string
+          views_count?: number | null
         }
         Update: {
           agent_id?: string | null
           agent_name?: string | null
+          comments_count?: number | null
           content?: string
+          content_with_tracking?: string | null
           created_at?: string
           id?: string
           last_error?: string | null
+          last_synced_at?: string | null
+          likes_count?: number | null
           linkedin_post_id?: string | null
           linkedin_post_url?: string | null
           next_retry_at?: string | null
@@ -239,9 +303,13 @@ export type Database = {
           posted_at?: string | null
           retry_count?: number | null
           scheduled_time?: string | null
+          sent_to_extension_at?: string | null
+          shares_count?: number | null
           status?: string | null
+          tracking_id?: string | null
           updated_at?: string
           user_id?: string
+          views_count?: number | null
         }
         Relationships: [
           {
