@@ -359,11 +359,13 @@ export type Database = {
           company_name: string | null
           country: string | null
           created_at: string
+          daily_post_count: number | null
           default_topics: string[] | null
           email: string | null
           id: string
           industry: string | null
           last_active_at: string | null
+          last_post_date: string | null
           linkedin_profile_confirmed: boolean | null
           linkedin_profile_data: Json | null
           linkedin_profile_edit_count: number | null
@@ -396,11 +398,13 @@ export type Database = {
           company_name?: string | null
           country?: string | null
           created_at?: string
+          daily_post_count?: number | null
           default_topics?: string[] | null
           email?: string | null
           id?: string
           industry?: string | null
           last_active_at?: string | null
+          last_post_date?: string | null
           linkedin_profile_confirmed?: boolean | null
           linkedin_profile_data?: Json | null
           linkedin_profile_edit_count?: number | null
@@ -433,11 +437,13 @@ export type Database = {
           company_name?: string | null
           country?: string | null
           created_at?: string
+          daily_post_count?: number | null
           default_topics?: string[] | null
           email?: string | null
           id?: string
           industry?: string | null
           last_active_at?: string | null
+          last_post_date?: string | null
           linkedin_profile_confirmed?: boolean | null
           linkedin_profile_data?: Json | null
           linkedin_profile_edit_count?: number | null
@@ -561,6 +567,10 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_daily_post_count: {
+        Args: { p_user_id: string }
+        Returns: undefined
       }
     }
     Enums: {
