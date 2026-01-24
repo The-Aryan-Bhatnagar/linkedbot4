@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Bot, Sparkles, Calendar, BarChart3, Chrome } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import dashboardPreview from "@/assets/dashboard-preview.png";
 
 const Hero = () => {
   const navigate = useNavigate();
@@ -141,23 +142,17 @@ const Hero = () => {
                 </div>
                 <div className="flex-1 flex justify-center">
                   <div className="px-4 py-1 bg-background rounded-md text-xs text-muted-foreground">
-                    app.linkedbot.ai/dashboard
+                    linkedbot4.lovable.app/dashboard
                   </div>
                 </div>
               </div>
               
-              {/* Dashboard content preview */}
-              <div className="p-6 bg-gradient-to-br from-background to-muted/30">
-                <div className="grid grid-cols-4 gap-4 mb-6">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-24 rounded-lg bg-card border border-border animate-pulse" />
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="col-span-2 h-48 rounded-lg bg-card border border-border animate-pulse" />
-                  <div className="h-48 rounded-lg bg-card border border-border animate-pulse" />
-                </div>
-              </div>
+              {/* Dashboard image */}
+              <img 
+                src={dashboardPreview} 
+                alt="LinkedBot Dashboard Preview showing analytics, scheduled posts, and engagement metrics"
+                className="w-full h-auto"
+              />
             </div>
           </div>
         </motion.div>
