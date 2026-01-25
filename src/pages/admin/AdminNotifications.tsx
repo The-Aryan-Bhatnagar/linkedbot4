@@ -79,9 +79,8 @@ const AdminNotifications = () => {
           return;
         }
 
-        const { data, error } = await supabase.rpc('has_role', {
-          _user_id: user.id,
-          _role: 'admin'
+        const { data, error } = await supabase.rpc('is_admin', {
+          _user_id: user.id
         });
 
         if (error) {
