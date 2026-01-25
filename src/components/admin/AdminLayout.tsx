@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
@@ -40,17 +40,35 @@ const adminNavItems = [
   { icon: Tag, label: "Coupons", path: "/admin/coupons" },
   { icon: CreditCard, label: "Payments", path: "/admin/payments" },
   { icon: Settings, label: "Settings", path: "/admin/settings" },
+  { icon: Shield, label: "Admin Management", path: "/admin/management", superAdminOnly: true },
 ];
 
 const AdminLayout = ({ children }: AdminLayoutProps) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    const checkSuperAdmin = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.rpc('is_super_admin', { _user_id: user.id });
+        setIsSuperAdmin(data === true);
+      }
+    };
+    checkSuperAdmin();
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login");
+    navigate("/admin/login");
   };
+
+  // Filter nav items based on super admin status
+  const visibleNavItems = adminNavItems.filter(
+    item => !item.superAdminOnly || isSuperAdmin
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -93,7 +111,7 @@ const AdminLayout = ({ children }: AdminLayoutProps) => {
 
           {/* Navigation */}
           <nav className="flex-1 py-6 px-4 space-y-1 overflow-y-auto scrollbar-hide">
-            {adminNavItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive = location.pathname === item.path;
               return (
                 <NavLink

@@ -24,6 +24,9 @@ import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminSettings from "./pages/admin/AdminSettings";
 import AdminCoupons from "./pages/admin/AdminCoupons";
 import AdminPayments from "./pages/admin/AdminPayments";
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminManagement from "./pages/admin/AdminManagement";
+import AdminRoute from "./components/admin/AdminRoute";
 import NotFound from "./pages/NotFound";
 import FeaturesPage from "./pages/FeaturesPage";
 import HowItWorks from "./pages/HowItWorks";
@@ -65,13 +68,17 @@ const AppContent = () => {
           <Route path="/dashboard/profile" element={<LinkedInProfile />} />
           <Route path="/dashboard/settings" element={<Settings />} />
           <Route path="/dashboard/billing" element={<Billing />} />
-          <Route path="/admin" element={<Admin />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
-          <Route path="/admin/notifications" element={<AdminNotifications />} />
-          <Route path="/admin/analytics" element={<AdminAnalytics />} />
-          <Route path="/admin/coupons" element={<AdminCoupons />} />
-          <Route path="/admin/payments" element={<AdminPayments />} />
-          <Route path="/admin/settings" element={<AdminSettings />} />
+          {/* Admin Login - public */}
+          <Route path="/admin/login" element={<AdminLogin />} />
+          {/* Protected Admin Routes */}
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+          <Route path="/admin/notifications" element={<AdminRoute><AdminNotifications /></AdminRoute>} />
+          <Route path="/admin/analytics" element={<AdminRoute><AdminAnalytics /></AdminRoute>} />
+          <Route path="/admin/coupons" element={<AdminRoute><AdminCoupons /></AdminRoute>} />
+          <Route path="/admin/payments" element={<AdminRoute><AdminPayments /></AdminRoute>} />
+          <Route path="/admin/settings" element={<AdminRoute><AdminSettings /></AdminRoute>} />
+          <Route path="/admin/management" element={<AdminRoute requireSuperAdmin><AdminManagement /></AdminRoute>} />
           {/* Public pages */}
           <Route path="/features" element={<FeaturesPage />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
