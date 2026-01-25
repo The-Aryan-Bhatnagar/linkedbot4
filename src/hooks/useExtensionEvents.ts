@@ -58,14 +58,23 @@ export const useExtensionEvents = () => {
       const { postId, trackingId, linkedinUrl } = event.detail;
       
       console.log('✅ Extension Event: Post published', { postId, trackingId, linkedinUrl });
+      console.log('🔄 Invalidating all cached queries to re-fetch from database...');
       
-      // Invalidate all relevant queries to refetch fresh data
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-      queryClient.invalidateQueries({ queryKey: ['scheduled-posts'] });
-      queryClient.invalidateQueries({ queryKey: ['analytics'] });
-      queryClient.invalidateQueries({ queryKey: ['agents'] });
-      queryClient.invalidateQueries({ queryKey: ['user-profile'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      // Force immediate refetch from database - NOT relying on local state
+      // Use refetchType: 'all' to ensure data is fetched fresh
+      queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['scheduled-posts'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['analytics'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['agents'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['user-profile'], refetchType: 'all' });
+      queryClient.invalidateQueries({ queryKey: ['notifications'], refetchType: 'all' });
+      
+      // Also refetch after a short delay to ensure DB has updated
+      setTimeout(() => {
+        console.log('🔄 Secondary refetch after 1s delay');
+        queryClient.invalidateQueries({ queryKey: ['posts'], refetchType: 'all' });
+        queryClient.invalidateQueries({ queryKey: ['scheduled-posts'], refetchType: 'all' });
+      }, 1000);
       
       toast.success('Post published successfully!', {
         description: linkedinUrl ? 'Click to view on LinkedIn' : undefined,

@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.post-success]
 verify_jwt = false
+
+[functions.check-overdue-posts]
+verify_jwt = false

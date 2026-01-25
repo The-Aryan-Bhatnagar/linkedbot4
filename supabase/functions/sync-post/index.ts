@@ -28,6 +28,8 @@ function isValidLinkedInUrl(url: string | undefined | null): boolean {
 Deno.serve(async (req) => {
   console.log('=== sync-post called ===');
   console.log('Method:', req.method);
+  console.log('URL:', req.url);
+  console.log('Headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
   
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -41,14 +43,29 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const payload: SyncPostPayload = await req.json();
-    console.log('Payload received:', JSON.stringify(payload));
+    const rawBody = await req.text();
+    console.log('📥 Raw request body:', rawBody);
+    
+    let payload: SyncPostPayload;
+    try {
+      payload = JSON.parse(rawBody);
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError);
+      return new Response(JSON.stringify({ success: false, error: 'Invalid JSON payload' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    
+    console.log('📋 Parsed payload:', JSON.stringify(payload));
     
     const { trackingId, postId, userId, linkedinUrl, status, postedAt, lastError } = payload;
 
+    console.log('🔍 Identifiers - postId:', postId, 'trackingId:', trackingId, 'userId:', userId);
+
     if (!trackingId && !postId) {
-      console.error('Missing trackingId or postId');
-      return new Response(JSON.stringify({ error: 'trackingId or postId required' }), {
+      console.error('❌ Missing trackingId or postId');
+      return new Response(JSON.stringify({ success: false, error: 'trackingId or postId required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -231,6 +248,7 @@ Deno.serve(async (req) => {
     }
 
     console.log(`✅ Post ${postId || trackingId} status updated to: ${newStatus}, verified: ${hasValidUrl}`);
+    console.log('📤 Returning success response with updated post');
 
     return new Response(JSON.stringify({ 
       success: true, 
@@ -242,8 +260,9 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Sync post error:', error);
+    console.error('❌ Sync post error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('❌ Error details:', errorMessage);
     return new Response(JSON.stringify({ success: false, error: errorMessage }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

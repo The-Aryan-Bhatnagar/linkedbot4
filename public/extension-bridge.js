@@ -40,29 +40,41 @@ window.LinkedBotBridge = {
   
   // Notify backend of successful post - updates posts table via sync-post
   notifyPostSuccess: async function(data) {
+    console.log('🔗 Bridge: notifyPostSuccess called with:', JSON.stringify(data));
     try {
       const supabaseUrl = 'https://glrgfnqdzwbpkcsoxsgd.supabase.co';
+      const payload = {
+        postId: data.postId,
+        trackingId: data.trackingId,
+        userId: data.userId,
+        status: 'posted',
+        postedAt: data.postedAt || new Date().toISOString(),
+        linkedinUrl: data.linkedinUrl
+      };
+      
+      console.log('🔗 Bridge: Sending to sync-post:', JSON.stringify(payload));
+      
       const response = await fetch(`${supabaseUrl}/functions/v1/sync-post`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          postId: data.postId,
-          trackingId: data.trackingId,
-          userId: data.userId,
-          status: 'posted',
-          postedAt: data.postedAt || new Date().toISOString(),
-          linkedinUrl: data.linkedinUrl
-        })
+        body: JSON.stringify(payload)
       });
       
+      console.log('🔗 Bridge: sync-post response status:', response.status);
+      
       const result = await response.json();
-      console.log('🔗 Bridge: Backend sync-post response:', result);
+      console.log('🔗 Bridge: Backend sync-post response:', JSON.stringify(result));
       
       if (!result.success) {
         console.error('🔗 Bridge: Backend error:', result.error);
+      } else {
+        console.log('✅ Bridge: Post status successfully synced to database');
       }
+      
+      return result;
     } catch (error) {
       console.error('🔗 Bridge: Failed to notify backend:', error);
+      return { success: false, error: error.message };
     }
   },
   
