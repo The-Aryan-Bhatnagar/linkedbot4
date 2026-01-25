@@ -527,6 +527,36 @@ const DashboardPage = () => {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-end gap-2">
+                          {/* Mark as Posted fallback button */}
+                          {post.linkedin_post_url && post.status !== 'posted' && (
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              className="h-8 text-xs gap-1 text-success border-success/30 hover:bg-success/10"
+                              onClick={async () => {
+                                try {
+                                  const { error } = await supabase
+                                    .from('posts')
+                                    .update({ 
+                                      status: 'posted', 
+                                      posted_at: new Date().toISOString(),
+                                      verified: true 
+                                    })
+                                    .eq('id', post.id);
+                                  if (error) throw error;
+                                  toast.success('Post marked as posted!');
+                                  fetchPosts();
+                                } catch (err) {
+                                  console.error('Failed to mark as posted:', err);
+                                  toast.error('Failed to update post status');
+                                }
+                              }}
+                              title="Mark as posted (URL exists but status not synced)"
+                            >
+                              <CheckCircle2 className="w-3 h-3" />
+                              Mark Posted
+                            </Button>
+                          )}
                           {post.linkedin_post_url && (
                             <Button 
                               variant="ghost" 

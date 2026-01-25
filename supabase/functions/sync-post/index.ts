@@ -26,16 +26,25 @@ function isValidLinkedInUrl(url: string | undefined | null): boolean {
 }
 
 Deno.serve(async (req) => {
-  console.log('=== sync-post called ===');
-  console.log('Method:', req.method);
-  console.log('URL:', req.url);
-  console.log('Headers:', JSON.stringify(Object.fromEntries(req.headers.entries())));
+  console.log('=== SYNC-POST EDGE FUNCTION CALLED ===');
+  console.log('📅 Timestamp:', new Date().toISOString());
+  console.log('📍 Method:', req.method);
+  console.log('🔗 URL:', req.url);
+  
+  // Log all headers for debugging
+  const headersObj: Record<string, string> = {};
+  req.headers.forEach((value, key) => {
+    headersObj[key] = value;
+  });
+  console.log('📋 Headers:', JSON.stringify(headersObj, null, 2));
   
   if (req.method === 'OPTIONS') {
+    console.log('✅ Handling CORS preflight');
     return new Response(null, { headers: corsHeaders });
   }
 
   if (req.method !== 'POST') {
+    console.log('❌ Invalid method:', req.method);
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
       status: 405,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -44,27 +53,35 @@ Deno.serve(async (req) => {
 
   try {
     const rawBody = await req.text();
-    console.log('📥 Raw request body:', rawBody);
+    console.log('📥 RAW REQUEST BODY:', rawBody);
+    console.log('📥 Body length:', rawBody.length);
     
     let payload: SyncPostPayload;
     try {
       payload = JSON.parse(rawBody);
     } catch (parseError) {
       console.error('❌ JSON parse error:', parseError);
+      console.error('❌ Failed to parse body:', rawBody.substring(0, 500));
       return new Response(JSON.stringify({ success: false, error: 'Invalid JSON payload' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
     
-    console.log('📋 Parsed payload:', JSON.stringify(payload));
+    console.log('📋 PARSED PAYLOAD:', JSON.stringify(payload, null, 2));
     
     const { trackingId, postId, userId, linkedinUrl, status, postedAt, lastError } = payload;
 
-    console.log('🔍 Identifiers - postId:', postId, 'trackingId:', trackingId, 'userId:', userId);
+    console.log('🔍 IDENTIFIERS:');
+    console.log('   postId:', postId);
+    console.log('   trackingId:', trackingId);
+    console.log('   userId:', userId);
+    console.log('   status:', status);
+    console.log('   linkedinUrl:', linkedinUrl);
+    console.log('   postedAt:', postedAt);
 
     if (!trackingId && !postId) {
-      console.error('❌ Missing trackingId or postId');
+      console.error('❌ Missing trackingId or postId - cannot identify post');
       return new Response(JSON.stringify({ success: false, error: 'trackingId or postId required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -84,41 +101,76 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // First, find the post to confirm it exists
-    let findQuery = supabase.from('posts').select('id, user_id, status, linkedin_post_url');
+    // First, find the post to confirm it exists - TRY BOTH postId AND trackingId
+    console.log('🔍 Searching for post...');
     
-    if (postId) {
-      findQuery = findQuery.eq('id', postId);
-    } else if (trackingId) {
-      findQuery = findQuery.eq('tracking_id', trackingId);
-    }
+    let existingPost = null;
+    let findError = null;
 
-    const { data: existingPost, error: findError } = await findQuery.maybeSingle();
+    // Try finding by postId first (UUID)
+    if (postId) {
+      console.log('🔍 Trying to find by postId:', postId);
+      const result = await supabase
+        .from('posts')
+        .select('id, user_id, status, linkedin_post_url, tracking_id')
+        .eq('id', postId)
+        .maybeSingle();
+      
+      existingPost = result.data;
+      findError = result.error;
+      console.log('🔍 postId search result:', existingPost ? 'FOUND' : 'NOT FOUND');
+    }
+    
+    // If not found by postId, try trackingId
+    if (!existingPost && trackingId) {
+      console.log('🔍 Trying to find by trackingId:', trackingId);
+      const result = await supabase
+        .from('posts')
+        .select('id, user_id, status, linkedin_post_url, tracking_id')
+        .eq('tracking_id', trackingId)
+        .maybeSingle();
+      
+      existingPost = result.data;
+      findError = result.error;
+      console.log('🔍 trackingId search result:', existingPost ? 'FOUND' : 'NOT FOUND');
+    }
     
     if (findError) {
-      console.error('Error finding post:', findError);
-      return new Response(JSON.stringify({ success: false, error: 'Error finding post' }), {
+      console.error('❌ Error finding post:', findError);
+      return new Response(JSON.stringify({ success: false, error: 'Error finding post', details: findError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
     if (!existingPost) {
-      console.error('Post not found with postId:', postId, 'or trackingId:', trackingId);
-      return new Response(JSON.stringify({ success: false, error: 'Post not found' }), {
+      console.error('❌ POST NOT FOUND');
+      console.error('   Searched postId:', postId);
+      console.error('   Searched trackingId:', trackingId);
+      
+      // Log all posts to help debug
+      const { data: allPosts } = await supabase
+        .from('posts')
+        .select('id, tracking_id, status')
+        .limit(10);
+      console.log('📋 Recent posts in DB:', JSON.stringify(allPosts, null, 2));
+      
+      return new Response(JSON.stringify({ success: false, error: 'Post not found', searchedPostId: postId, searchedTrackingId: trackingId }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Found post:', JSON.stringify(existingPost));
+    console.log('✅ FOUND POST:', JSON.stringify(existingPost, null, 2));
 
     // Determine the new status based on payload
     const newStatus = status || 'posted';
+    console.log('📊 New status to set:', newStatus);
     
     // Check if this is a valid verified LinkedIn URL
     const hasValidUrl = isValidLinkedInUrl(linkedinUrl);
     const hadValidUrl = isValidLinkedInUrl(existingPost.linkedin_post_url);
+    console.log('🔗 URL validation - incoming:', hasValidUrl, 'existing:', hadValidUrl);
     
     // Build update data
     const updateData: Record<string, unknown> = {
@@ -156,28 +208,25 @@ Deno.serve(async (req) => {
       updateData.verified = false;
     }
 
-    console.log('Update data:', JSON.stringify(updateData));
+    console.log('📝 UPDATE DATA:', JSON.stringify(updateData, null, 2));
 
-    // Update the post
-    let updateQuery = supabase.from('posts').update(updateData);
-
-    if (postId) {
-      updateQuery = updateQuery.eq('id', postId);
-    } else if (trackingId) {
-      updateQuery = updateQuery.eq('tracking_id', trackingId);
-    }
-
-    const { error: postError, data: updatedPost } = await updateQuery.select().single();
+    // Update the post using the found post's ID (most reliable)
+    const { error: postError, data: updatedPost } = await supabase
+      .from('posts')
+      .update(updateData)
+      .eq('id', existingPost.id)
+      .select()
+      .single();
 
     if (postError) {
-      console.error('Post update error:', postError);
+      console.error('❌ POST UPDATE ERROR:', postError);
       return new Response(JSON.stringify({ success: false, error: postError.message }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Post updated successfully:', JSON.stringify(updatedPost));
+    console.log('✅ POST UPDATED SUCCESSFULLY:', JSON.stringify(updatedPost, null, 2));
 
     // Use the userId from the found post if not provided
     const effectiveUserId = userId || existingPost.user_id;
