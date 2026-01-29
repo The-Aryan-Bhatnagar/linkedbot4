@@ -867,9 +867,16 @@ function detectIntent(message: string, uploadedImages?: string[]): { type: strin
     return { type: "show_post" };
   }
 
-  // Post now (immediate)
-  if ((lower.includes("post it") || lower.includes("publish")) &&
-      (lower.includes("now") || lower.includes("right now") || lower.includes("immediately"))) {
+  // Post now (immediate) - ENHANCED to catch more patterns
+  const postNowPatterns = [
+    /\b(post|publish|send)\s*(it)?\s*(now|right now|immediately|right away|asap)\b/i,
+    /\bright now\b/i, // Just "right now" alone
+    /\btoday\s*(right)?\s*now\b/i, // "today right now"
+    /\bnow\s*please\b/i,
+    /\bpost\s*immediately\b/i,
+  ];
+  
+  if (postNowPatterns.some(pattern => pattern.test(lower))) {
     return { type: "post_now" };
   }
 
@@ -1188,9 +1195,27 @@ Or would you prefer different topics/timing?`;
         if (!generatedPosts || generatedPosts.length === 0) {
           response = "I don't have any posts ready to publish. Would you like me to create one first?\n\nJust say 'write a post about [topic]' 📝";
         } else {
-          // CRITICAL: Never claim "posting" - only guide user to the action
-          response = `📋 **Ready to Post**\n\nYour post is ready. To publish it:\n\n1. Click the **"Post Now"** button in the Generated Posts panel\n2. Wait for the Chrome extension to confirm\n3. I'll update you once LinkedIn confirms the post is live\n\n⚠️ **Note:** I cannot post directly - the extension handles the actual publishing.`;
+          // Get the most recent post for immediate scheduling
+          const postToSchedule = generatedPosts[0];
+          const now = new Date();
+          // Schedule 1 minute from now for immediate posting
+          const immediateTime = new Date(now.getTime() + 60 * 1000);
+          
+          response = `🚀 **Posting Now**\n\nSending your post to the Chrome extension for immediate publishing...\n\nPlease keep LinkedIn open in another tab.`;
           action = "post_now";
+          
+          // Return with immediate schedule time
+          return new Response(
+            JSON.stringify({
+              type: "auto_schedule",
+              message: response,
+              posts: [],
+              action: "post_now",
+              scheduledTime: immediateTime.toISOString(),
+              postToSchedule: postToSchedule,
+            }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
         break;
       }

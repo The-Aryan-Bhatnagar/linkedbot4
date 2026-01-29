@@ -269,20 +269,23 @@ export function useAgentChat(
         return data;
       }
 
-      // If posts were generated directly, DO NOT add to generatedPosts yet
-      // Posts only appear in Generated Posts panel AFTER user approves
-      // The agent will ask for approval, and when user confirms, we use auto_schedule
+      // If posts were generated, ADD them to generatedPosts with draft status
+      // This allows "post now" and scheduling to work immediately
       if (data.type === "posts_generated" && data.posts?.length > 0) {
-        // Store as "pending approval" - shown in chat but NOT in Generated Posts panel
-        console.log("📝 Posts created - awaiting user approval before adding to Generated Posts");
+        console.log("📝 Adding generated posts to queue:", data.posts.length);
         
-        // We no longer auto-add posts. The flow is:
-        // 1. Agent shows draft in chat
-        // 2. Agent asks for approval
-        // 3. User approves with time → auto_schedule triggered
-        // 4. ONLY THEN post is added to generatedPosts via auto_schedule handler
+        const newPosts: GeneratedPost[] = data.posts.map((p: any) => ({
+          ...p,
+          id: p.id || `post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          status: 'draft' as PostStatus,
+          approved: false,
+          imageSkipped: false,
+        }));
         
-        toast.info(`Post ready! Please review and approve in chat.`);
+        // Add to generated posts (prepend to show newest first)
+        setGeneratedPosts(prev => [...newPosts, ...prev]);
+        
+        toast.success(`📝 Post ready! Say "post now" or provide a time to schedule.`);
       }
 
       return data;
