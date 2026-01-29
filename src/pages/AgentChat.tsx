@@ -53,26 +53,32 @@ const AgentChatPage = () => {
   const [chatInput, setChatInput] = useState("");
   const [generatePhoto, setGeneratePhoto] = useState(false);
   const [showImageUpload, setShowImageUpload] = useState(false);
-  const [tone, setTone] = useState("conversational");
-  const [emojiLevel, setEmojiLevel] = useState(2);
-  const [postLength, setPostLength] = useState("medium");
   
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const { agents } = useAgents();
   const { profile } = useUserProfile();
 
-  // Find the agent if ID provided
+  // Find the agent if ID provided and LOAD its saved settings
   const currentAgent = agentId ? agents.find(a => a.id === agentId) : null;
   const displayAgentType = currentAgent?.type || agentType;
   const displayAgentName = currentAgent?.name || agentTypes.find(t => t.id === displayAgentType)?.label || "Agent";
 
-  // Agent settings
+  // Parse agent settings from saved database settings
+  const savedSettings = currentAgent?.settings as {
+    tone?: string;
+    emojiLevel?: number;
+    postLength?: string;
+    voiceReference?: string;
+  } | null;
+
+  // Agent settings - NOW CONNECTED to saved DB settings!
   const currentAgentSettings = {
     type: displayAgentType,
-    tone,
-    emojiLevel,
-    postLength,
+    tone: savedSettings?.tone || "conversational",
+    emojiLevel: savedSettings?.emojiLevel ?? 2,
+    postLength: savedSettings?.postLength || "medium",
+    voiceReference: savedSettings?.voiceReference,
   };
 
   // Real user context from profile
