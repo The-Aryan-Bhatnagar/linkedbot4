@@ -378,6 +378,7 @@ window.addEventListener('message', (event) => {
   
   const message = event.data;
   
+  // Legacy: SET_CURRENT_USER (backwards compatible)
   if (message.type === 'SET_CURRENT_USER') {
     console.log('👤 Bridge: Setting current user in extension:', message.userId);
     
@@ -393,6 +394,31 @@ window.addEventListener('message', (event) => {
     }, '*');
   }
   
+  // NEW: INITIALIZE_USER (improved auth flow)
+  if (message.type === 'INITIALIZE_USER') {
+    console.log('🔒 Bridge: Initializing user in extension:', message.userId);
+    
+    // Dispatch detailed initialization event for extension
+    window.dispatchEvent(new CustomEvent('linkedbot:user-initialized', {
+      detail: { 
+        userId: message.userId,
+        email: message.email
+      }
+    }));
+    
+    // Also dispatch legacy event for backwards compatibility
+    window.dispatchEvent(new CustomEvent('linkedbot:user-changed', {
+      detail: { userId: message.userId }
+    }));
+    
+    window.postMessage({
+      type: 'USER_INITIALIZED',
+      success: true,
+      userId: message.userId
+    }, '*');
+  }
+  
+  // Legacy: CLEAR_USER_SESSION (backwards compatible)
   if (message.type === 'CLEAR_USER_SESSION') {
     console.log('🧹 Bridge: Clearing user session in extension');
     
@@ -405,6 +431,35 @@ window.addEventListener('message', (event) => {
       type: 'USER_SESSION_CLEARED',
       success: true
     }, '*');
+  }
+  
+  // NEW: LOGOUT_USER (improved auth flow)
+  if (message.type === 'LOGOUT_USER') {
+    console.log('🔒 Bridge: Logging out user from extension');
+    
+    // Dispatch detailed logout event for extension
+    window.dispatchEvent(new CustomEvent('linkedbot:user-logged-out', {
+      detail: {}
+    }));
+    
+    // Also dispatch legacy event for backwards compatibility
+    window.dispatchEvent(new CustomEvent('linkedbot:user-logout', {
+      detail: {}
+    }));
+    
+    window.postMessage({
+      type: 'USER_LOGGED_OUT',
+      success: true
+    }, '*');
+  }
+  
+  // NEW: CHECK_USER_AUTH (for debugging)
+  if (message.type === 'CHECK_USER_AUTH') {
+    console.log('🔍 Bridge: Checking user auth status');
+    
+    window.dispatchEvent(new CustomEvent('linkedbot:check-auth', {
+      detail: {}
+    }));
   }
 });
 

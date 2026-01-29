@@ -95,6 +95,9 @@ const Signup = () => {
       if (error) throw error;
 
       if (data.user) {
+        // ✅ Initialize user in extension (improved auth flow)
+        initializeUserInExtension(data.user.id, data.user.email);
+        
         toast({
           title: "Account created!",
           description: "Welcome to LinkedBot. Let's set up your account.",
@@ -132,6 +135,32 @@ const Signup = () => {
       });
       setIsLoading(false);
     }
+  };
+
+  // Helper function to initialize user in extension
+  const initializeUserInExtension = (userId: string, email: string | undefined) => {
+    console.log('🔒 Initializing user in extension:', userId);
+    
+    // Check if extension bridge is available
+    const windowWithBridge = window as any;
+    if (typeof windowWithBridge.LinkedBotBridge !== 'undefined') {
+      windowWithBridge.LinkedBotBridge.setCurrentUser(userId);
+    }
+    
+    // Send INITIALIZE_USER message for improved extension auth
+    window.postMessage({
+      type: 'INITIALIZE_USER',
+      userId: userId,
+      email: email || null
+    }, '*');
+    
+    // Also send legacy SET_CURRENT_USER for backwards compatibility
+    window.postMessage({
+      type: 'SET_CURRENT_USER',
+      userId: userId
+    }, '*');
+    
+    console.log('✅ User initialization sent to extension');
   };
 
   if (checkingAuth) {

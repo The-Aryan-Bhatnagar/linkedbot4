@@ -96,11 +96,8 @@ const Login = () => {
       if (error) throw error;
 
       if (data.user) {
-        // Notify extension of logged in user for data isolation
-        window.postMessage({
-          type: 'SET_CURRENT_USER',
-          userId: data.user.id
-        }, '*');
+        // ✅ Initialize user in extension (improved auth flow)
+        initializeUserInExtension(data.user.id, data.user.email);
         
         toast({
           title: "Account created!",
@@ -139,12 +136,9 @@ const Login = () => {
 
       if (error) throw error;
 
-      // Notify extension of logged in user for data isolation
+      // ✅ Initialize user in extension (improved auth flow)
       if (data.user) {
-        window.postMessage({
-          type: 'SET_CURRENT_USER',
-          userId: data.user.id
-        }, '*');
+        initializeUserInExtension(data.user.id, data.user.email);
       }
     } catch (error) {
       console.error('Login error:', error);
@@ -178,6 +172,32 @@ const Login = () => {
       });
       setIsLoading(false);
     }
+  };
+
+  // Helper function to initialize user in extension
+  const initializeUserInExtension = (userId: string, email: string | undefined) => {
+    console.log('🔒 Initializing user in extension:', userId);
+    
+    // Check if extension bridge is available
+    const windowWithBridge = window as any;
+    if (typeof windowWithBridge.LinkedBotBridge !== 'undefined') {
+      windowWithBridge.LinkedBotBridge.setCurrentUser(userId);
+    }
+    
+    // Send INITIALIZE_USER message for improved extension auth
+    window.postMessage({
+      type: 'INITIALIZE_USER',
+      userId: userId,
+      email: email || null
+    }, '*');
+    
+    // Also send legacy SET_CURRENT_USER for backwards compatibility
+    window.postMessage({
+      type: 'SET_CURRENT_USER',
+      userId: userId
+    }, '*');
+    
+    console.log('✅ User initialization sent to extension');
   };
 
   if (checkingAuth) {
