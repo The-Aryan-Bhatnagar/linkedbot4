@@ -185,20 +185,37 @@ export function useLinkedBotExtension() {
       setState(prev => ({ ...prev, isInstalled: true }));
       checkExtension();
     } else {
+      // Check localStorage for previously connected extension
+      const wasConnected = localStorage.getItem('extension_connected') === 'true';
+      const savedExtensionId = localStorage.getItem('extension_id');
+      
+      if (wasConnected && savedExtensionId) {
+        // Restore connection state from localStorage
+        setState(prev => ({
+          ...prev,
+          isInstalled: true,
+          isConnected: true,
+          extensionId: savedExtensionId,
+          isLoading: false,
+        }));
+      }
+      
       // Auto-check extension status on mount via message
       setTimeout(() => {
         window.postMessage({ type: 'CHECK_EXTENSION' }, '*');
       }, 500);
       
-      // Also set loading to false after timeout if no response
+      // CRITICAL: Set loading to false after short timeout
+      // Don't wait forever for extension response
       setTimeout(() => {
         setState(prev => {
           if (prev.isLoading) {
+            console.log('⏱️ Extension check timeout - setting loading to false');
             return { ...prev, isLoading: false };
           }
           return prev;
         });
-      }, 2000);
+      }, 1500); // Reduced from 2000ms to 1500ms
     }
 
     // Listen for extension ready event
