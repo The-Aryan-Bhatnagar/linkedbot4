@@ -72,6 +72,21 @@ export function useLinkedBotExtension() {
         }
       }
 
+      // NEW: Handle SESSION_SYNCED, LINKEDBOT_AUTH_READY, AUTH_SET messages from extension
+      if (message.type === 'SESSION_SYNCED' || message.type === 'LINKEDBOT_AUTH_READY' || message.type === 'AUTH_SET') {
+        console.log('✅ Extension detected via message:', message.type);
+        setState(prev => ({
+          ...prev,
+          isInstalled: true,
+          isConnected: true,
+          isLoading: false,
+          requiresRefresh: false,
+        }));
+        
+        // Save to localStorage for persistence
+        localStorage.setItem('extension_connected', 'true');
+      }
+
       // Extension status check
       if (message.type === 'EXTENSION_STATUS') {
         setState(prev => ({
