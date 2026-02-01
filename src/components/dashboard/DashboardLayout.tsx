@@ -48,20 +48,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
   const navigate = useNavigate();
   const { profile, isLoading } = useUserProfile();
 
-  // 🔒 Set current user in extension when dashboard loads (for data isolation)
-  useEffect(() => {
-    const setUserInExtension = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('🔒 DashboardLayout: Setting current user in extension:', user.id);
-        window.postMessage({
-          type: 'SET_CURRENT_USER',
-          userId: user.id
-        }, '*');
-      }
-    };
-    setUserInExtension();
-  }, []);
+  // Session sync is now handled globally by useExtensionAuth in App.tsx
 
   // Get user initials for avatar
   const getInitials = (name: string | null | undefined) => {

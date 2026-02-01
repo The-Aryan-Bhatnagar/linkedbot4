@@ -19,7 +19,6 @@ import {
   CheckCircle,
   AlertCircle,
   ThumbsUp,
-  Send,
 } from "lucide-react";
 import { GeneratedPost } from "@/hooks/useAgentChat";
 import { formatDistanceToNow } from "date-fns";
@@ -30,7 +29,6 @@ import {
   STATUS_COLORS, 
   canEditPost, 
   canDeletePost, 
-  canPostNow as canPostNowCheck,
   isProcessingState,
   shouldArchivePost,
 } from "@/lib/postLifecycle";
@@ -85,51 +83,42 @@ export function PostPreviewCard({
     }
   };
 
-  // Get current status with fallback
-  const currentStatus: PostStatus = (post.status as PostStatus) || 'draft';
+  // Get current status with fallback - CLEAN ARCHITECTURE
+  // Only 4 valid statuses: pending, posting, posted, failed
+  const currentStatus: PostStatus = (post.status as PostStatus) || 'pending';
   const isApproved = post.approved || false;
   const canEdit = canEditPost(currentStatus);
   const canDelete = canDeletePost(currentStatus);
-  const canPost = canPostNowCheck(currentStatus, isApproved);
   const isProcessing = isProcessingState(currentStatus);
   const isArchived = shouldArchivePost(currentStatus);
 
   // Get status colors from lifecycle
-  const statusColors = STATUS_COLORS[currentStatus] || STATUS_COLORS.draft;
+  const statusColors = STATUS_COLORS[currentStatus] || STATUS_COLORS.pending;
 
-  // Status badge with proper lifecycle display
+  // Status badge with clean status display
   const getStatusBadge = () => {
     switch (currentStatus) {
       case 'posted':
-      case 'published':
         return (
           <Badge variant="default" className={`${statusColors.bg} ${statusColors.text} ${statusColors.border}`}>
             <CheckCircle className="w-3 h-3 mr-1" />
-            {STATUS_LABELS[currentStatus]}
+            Posted ✓
           </Badge>
         );
-      case 'queued_in_extension':
       case 'posting':
         return (
           <Badge variant="default" className={`${statusColors.bg} ${statusColors.text} ${statusColors.border}`}>
             <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-            {STATUS_LABELS[currentStatus]}
+            Posting...
           </Badge>
         );
-      case 'scheduled':
+      case 'pending':
         return (
           <Badge variant="default" className={`${statusColors.bg} ${statusColors.text} ${statusColors.border}`}>
             <Clock className="w-3 h-3 mr-1" />
             {post.scheduledTime 
-              ? `In ${formatDistanceToNow(new Date(post.scheduledTime))}` 
-              : 'Scheduled'}
-          </Badge>
-        );
-      case 'approved':
-        return (
-          <Badge variant="default" className={`${statusColors.bg} ${statusColors.text} ${statusColors.border}`}>
-            <ThumbsUp className="w-3 h-3 mr-1" />
-            Approved
+              ? `Queued - ${formatDistanceToNow(new Date(post.scheduledTime))}` 
+              : 'Queued'}
           </Badge>
         );
       case 'failed':
@@ -143,7 +132,7 @@ export function PostPreviewCard({
         return (
           <Badge variant="secondary" className="bg-muted text-muted-foreground">
             <Edit className="w-3 h-3 mr-1" />
-            Draft {isApproved ? '(Approved)' : ''}
+            Queued
           </Badge>
         );
     }
@@ -351,8 +340,6 @@ export function PostPreviewCard({
             Regenerate
           </Button>
         )}
-
-        {/* Post Now button REMOVED - posting is fully agent-driven */}
 
         {/* Processing indicator */}
         {isProcessing && (

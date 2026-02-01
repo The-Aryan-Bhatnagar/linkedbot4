@@ -1,165 +1,102 @@
+# LinkedBot Clean Architecture - WEBSITE ONLY
 
-# Complete Fix: Extension Authentication and Database Constraint Issues
+## Architecture Summary
 
-## Problems Identified
+LinkedBot consists of:
+1. **React website** (Lovable + Supabase) - YOU ARE HERE
+2. **Chrome extension** that posts to LinkedIn
 
-After thorough analysis, I found **two critical issues** blocking the posting flow:
+### CRITICAL RULES
 
-### Issue 1: Database CHECK Constraint Mismatch
-The `posts` table has a CHECK constraint that only allows 4 status values:
-```sql
-CHECK ((status = ANY (ARRAY['draft', 'scheduled', 'posted', 'failed'])))
-```
-
-But the code uses **8 different status values** in the state machine:
-- `draft` ✅ (allowed)
-- `approved` ❌ (blocked)
-- `scheduled` ✅ (allowed)
-- `queued_in_extension` ❌ (blocked) 
-- `posting` ❌ (blocked)
-- `posted` ✅ (allowed)
-- `published` ❌ (blocked)
-- `failed` ✅ (allowed)
-
-When `AgentChat.tsx` tries to update a post status to `queued_in_extension`, the database rejects it with a constraint violation error.
-
-### Issue 2: Extension Not Receiving userId for API Calls
-The `sync-post` edge function requires `userId` for ownership verification:
-```typescript
-if (!payload.userId) {
-  return new Response({ error: 'userId is required' }, { status: 400 });
-}
-```
-
-The extension needs to include `userId` in its API calls, but it may not be receiving the auth sync correctly.
+| What | Website Can Do | Extension Does |
+|------|----------------|----------------|
+| Status | Insert `pending` ONLY | Update to `posting`, `posted`, `failed` |
+| Post to LinkedIn | ❌ NEVER | ✅ YES |
+| Update status | ❌ NEVER | ✅ YES |
 
 ---
 
-## Solution Overview
+## Database Schema
 
-### Fix 1: Update Database Constraint
-Add the missing status values to the CHECK constraint.
-
-### Fix 2: Update Extension Bridge
-Ensure the bridge properly sends `userId` along with post data when calling sync-post.
-
-### Fix 3: Fix AgentChat.tsx Database Update
-Add proper error handling and ensure userId is always included.
-
----
-
-## Implementation Details
-
-### Step 1: Database Migration
-Update the `posts_status_check` constraint to include all valid statuses:
+### posts table
 
 ```sql
-ALTER TABLE posts DROP CONSTRAINT IF EXISTS posts_status_check;
-
-ALTER TABLE posts ADD CONSTRAINT posts_status_check 
-  CHECK (status = ANY (ARRAY[
-    'draft',
-    'approved', 
-    'scheduled',
-    'queued_in_extension',
-    'posting',
-    'posted',
-    'published',
-    'failed'
-  ]));
+-- Status CHECK constraint (clean values only)
+CHECK (status = ANY (ARRAY['pending', 'posting', 'posted', 'failed']))
 ```
 
-### Step 2: Update AgentChat.tsx Error Handling
-Add proper error handling when updating post status:
+| Status | Set By | Meaning |
+|--------|--------|---------|
+| `pending` | Website | Post created, waiting for extension |
+| `posting` | Extension | Currently posting to LinkedIn |
+| `posted` | Extension | Successfully published |
+| `failed` | Extension | Post failed |
 
-```typescript
-// Current (no error handling):
-await supabase.from('posts').update({ 
-  status: 'queued_in_extension',
-}).eq('id', savedPost.dbId || savedPost.id);
+---
 
-// Fixed (with error handling and logging):
-const { error: updateError } = await supabase.from('posts').update({ 
-  sent_to_extension_at: new Date().toISOString(),
-  status: 'queued_in_extension',
-}).eq('id', savedPost.dbId || savedPost.id);
+## Implementation Files
 
-if (updateError) {
-  console.error('Failed to update post status:', updateError);
-  // Continue anyway - extension has the post
-}
+### 1. `useExtensionAuth.ts` - Session Sync
+Syncs Supabase SESSION to Chrome extension for authenticated API calls.
+- Message type: `SUPABASE_SESSION`
+- Includes: `access_token`, `refresh_token`, `user.id`
+- Auth ONLY - NOT for posting
+
+### 2. `usePostsClean.ts` - Post Management
+Clean post CRUD with realtime subscription.
+- `createPost()`: Inserts with `status: 'pending'` ONLY
+- `deletePost()`: Only for pending/failed posts
+- Realtime subscription for status updates from extension
+
+### 3. `PostStatusBadge.tsx` - UI Component
+Displays post status with proper colors:
+- pending → "Queued" (yellow)
+- posting → "Posting now..." (blue + spinner)
+- posted → "Posted ✅" + LinkedIn URL (green)
+- failed → error message (red)
+
+### 4. `postLifecycle.ts` - Status Types
+Clean PostStatus type: `'pending' | 'posting' | 'posted' | 'failed'`
+
+---
+
+## Posting Flow
+
 ```
+Website (React)
+└─> User logs in via Supabase
+└─> User creates a post
+└─> Website inserts row: status = 'pending'
+└─> Website STOPS ✋
 
-### Step 3: Update Extension Bridge to Include userId
-Modify `extension-bridge.js` to always include userId when sending posts:
+Extension (separate system)
+└─> Polls Supabase for pending posts
+└─> Posts to LinkedIn
+└─> Updates status: 'posting' → 'posted' or 'failed'
 
-```javascript
-// In notifyPostSuccess:
-const payload = {
-  postId: data.postId,
-  trackingId: data.trackingId,
-  userId: data.userId, // CRITICAL: Must be included
-  // ...
-};
-```
-
-### Step 4: Update sendPendingPosts to Include userId
-Ensure the hook passes userId when calling extension:
-
-```typescript
-const postForExtension = {
-  id: savedPost.dbId || savedPost.id,
-  trackingId: savedPost.trackingId,
-  userId: userId, // Add this
-  content: savedPost.content,
-  // ...
-};
+Website
+└─> Listens via Supabase realtime
+└─> Updates UI based on DB changes
 ```
 
 ---
 
-## Files to Modify
+## What Website Does NOT Do
 
-| File | Change |
-|------|--------|
-| Database migration | Add new status values to constraint |
-| `src/pages/AgentChat.tsx` | Add error handling, include userId |
-| `public/extension-bridge.js` | Ensure userId is passed to sync-post |
-| `src/hooks/useLinkedBotExtension.ts` | Ensure userId is included in post data |
-
----
-
-## Technical Flow After Fix
-
-```text
-User approves post in chat
-       ↓
-AgentChat saves post with status='scheduled'
-       ↓
-Post sent to extension with userId
-       ↓
-Database accepts 'queued_in_extension' status (constraint fixed)
-       ↓
-Extension receives post + userId
-       ↓
-Extension posts to LinkedIn
-       ↓
-Extension calls sync-post with userId
-       ↓
-sync-post verifies ownership and updates status='posted'
-       ↓
-UI shows "Posted ✓"
-```
+❌ Call LinkedIn API  
+❌ Send posts to extension via postMessage  
+❌ Update status to `posted` or `failed`  
+❌ Show optimistic "Posted" UI  
+❌ Store post queues locally  
+❌ Use chrome.alarms  
+❌ Fake success toasts  
 
 ---
 
-## Testing Steps After Fix
+## Testing Checklist
 
-1. Reload the extension at chrome://extensions
-2. Refresh the web app
-3. Logout and login again (to sync auth)
-4. Create a post with the agent
-5. Approve the post and say "post now" or schedule it
-6. Verify browser console shows "Auth sent to extension"
-7. Verify no database constraint errors
-8. Verify post appears on LinkedIn
+1. [ ] Create post → status is `pending` in database
+2. [ ] Toast shows: "Post created. Extension will publish it."
+3. [ ] Realtime subscription updates UI when extension changes status
+4. [ ] Session synced to extension on login/page load
+5. [ ] No website code attempts to update status to posted/failed

@@ -405,9 +405,31 @@ window.addEventListener('message', (event) => {
   
   const message = event.data;
   
-  // ✅ NEW v3.2.1: SET_AUTH (primary method for auth sync with access token)
+  // ✅ SUPABASE_SESSION - Primary method for full session sync
+  if (message.type === 'SUPABASE_SESSION') {
+    console.log('🔑 Bridge: Received SUPABASE_SESSION:', message.session?.user?.id);
+    
+    if (message.session?.user?.id && message.session?.access_token) {
+      window.LinkedBotAuth.setAuth(message.session.user.id, message.session.access_token);
+      
+      // Dispatch event for extension
+      window.dispatchEvent(new CustomEvent('linkedbot:session-ready', {
+        detail: message.session
+      }));
+      
+      window.postMessage({
+        type: 'SESSION_SYNCED',
+        success: true,
+        userId: message.session.user.id
+      }, '*');
+      
+      console.log('✅ Supabase session synced to extension');
+    }
+  }
+  
+  // ✅ SET_AUTH (legacy method for auth sync with access token)
   if (message.type === 'SET_AUTH') {
-    console.log('🔑 Bridge v3.2.1: Setting auth:', message.userId);
+    console.log('🔑 Bridge: Setting auth:', message.userId);
     
     // Store auth in window object for extension to read
     window.LinkedBotAuth.setAuth(message.userId, message.accessToken);

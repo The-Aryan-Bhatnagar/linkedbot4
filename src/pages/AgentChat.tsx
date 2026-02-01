@@ -237,7 +237,8 @@ const AgentChatPage = () => {
         return;
       }
       
-      // Save to database with approved and scheduled status
+      // Save to database with status='pending' (CLEAN ARCHITECTURE)
+      // Website ONLY inserts 'pending' - extension updates status
       const postToSave: GeneratedPost = {
         id: postToSchedule.id,
         content: postToSchedule.content,
@@ -246,9 +247,9 @@ const AgentChatPage = () => {
         scheduledDateTime: scheduledTime.toISOString(),
         imageUrl: postToSchedule.imageUrl,
         imagePrompt: postToSchedule.imagePrompt,
-        status: 'scheduled' as PostStatus,
-        approved: true, // Auto-approved since user explicitly approved
-        imageSkipped: !postToSchedule.imageUrl, // Skip image if not provided
+        status: 'pending' as PostStatus, // ✅ ALWAYS 'pending' - extension owns status
+        approved: true,
+        imageSkipped: !postToSchedule.imageUrl,
       };
       
       const savedPost = await savePostToDatabase(postToSave, scheduledTime);
@@ -297,29 +298,19 @@ const AgentChatPage = () => {
         const result = await sendPendingPosts([postForExtension as any], currentUserId);
         
         if (result.success) {
-          // Add to Generated Posts panel ONLY after successful extension handoff
+          // Add to Generated Posts panel
           const finalPost = { 
             ...savedPost, 
-            status: 'queued_in_extension' as PostStatus,
-            queuedAt: new Date().toISOString(),
+            status: 'pending' as PostStatus, // Keep as pending - extension will update
           };
           
-          // Use setGeneratedPosts from hook to add the approved post
           setGeneratedPosts(prev => [finalPost, ...prev.filter(p => p.id !== finalPost.id)]);
           
-          addActivityEntry("scheduled", `Scheduled for ${format(scheduledTime, 'MMM d, h:mm a')}`, savedPost.id);
-          toast.success(`✅ Post scheduled for ${format(scheduledTime, 'MMM d, h:mm a')}!`);
+          addActivityEntry("scheduled", `Queued for ${format(scheduledTime, 'MMM d, h:mm a')}`, savedPost.id);
+          toast.success(`✅ Post created! Extension will publish at ${format(scheduledTime, 'MMM d, h:mm a')}`);
           
-          // Update database to mark sent to extension with error handling
-          const { error: updateError } = await supabase.from('posts').update({ 
-            sent_to_extension_at: new Date().toISOString(),
-            status: 'queued_in_extension',
-          }).eq('id', savedPost.dbId || savedPost.id);
-          
-          if (updateError) {
-            console.error('Failed to update post status in database:', updateError);
-            // Continue anyway - extension has the post
-          }
+          // ✅ CLEAN ARCHITECTURE: Website does NOT update status
+          // Extension polls Supabase and updates status to posting/posted/failed
         } else {
           addActivityEntry("failed", result.error || "Failed to send to extension", savedPost.id);
           toast.error(result.error || "❌ Failed to send to extension");

@@ -454,15 +454,17 @@ export function useAgentChat(
       const trackingId = generatePostTrackingId();
       const contentWithTracking = embedTrackingId(post.content, trackingId);
 
+      // ✅ CLEAN ARCHITECTURE: Website ONLY inserts with status='pending'
+      // Extension updates to: posting, posted, failed
       const { data: savedPost, error } = await supabase
         .from("posts")
         .insert({
           user_id: user.id,
-          content: post.content, // Original for display
-          content_with_tracking: contentWithTracking, // For posting with tracking
+          content: post.content,
+          content_with_tracking: contentWithTracking,
           tracking_id: trackingId,
           photo_url: post.imageUrl || null,
-          status: scheduledTime ? 'scheduled' : 'draft',
+          status: 'pending', // ✅ ALWAYS 'pending' - extension owns status updates
           scheduled_time: scheduledTime?.toISOString() || null,
           agent_id: agentId || null,
         })
@@ -474,14 +476,14 @@ export function useAgentChat(
         throw error;
       }
 
-      console.log("✅ Post saved to database:", savedPost.id);
+      console.log("✅ Post saved to database with status=pending:", savedPost.id);
       
       // Return updated post with DB info
       return {
         ...post,
         dbId: savedPost.id,
         trackingId: trackingId,
-        status: scheduledTime ? 'scheduled' : 'draft',
+        status: 'pending' as PostStatus, // Always pending
         scheduledTime: scheduledTime?.toISOString(),
       };
     } catch (err) {
@@ -502,7 +504,7 @@ export function useAgentChat(
       reasoning: "Created from preview",
       scheduledDateTime: (scheduledTime || new Date()).toISOString(),
       imageUrl: previewPost.imageUrl,
-      status: scheduledTime ? 'scheduled' : 'draft',
+      status: 'pending' as PostStatus, // ✅ Always pending
     };
     
     // Save to database
