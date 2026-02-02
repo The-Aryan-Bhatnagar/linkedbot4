@@ -270,32 +270,18 @@ const AgentChatPage = () => {
           return;
         }
         
-        // Get current user ID for extension communication
-        const { data: { user } } = await supabase.auth.getUser();
-        const currentUserId = user?.id;
-        
-        if (!currentUserId) {
-          console.error("❌ No authenticated user found");
-          addActivityEntry("failed", "User not authenticated", savedPost.id);
-          toast.error("Please log in again to schedule posts");
-          return;
-        }
-        
+        // v4.0 - Simple payload (NO user_id - extension doesn't need it)
         const postForExtension = {
           id: savedPost.dbId || savedPost.id,
           trackingId: savedPost.trackingId,
-          userId: currentUserId, // CRITICAL: Include userId for ownership verification
           content: savedPost.content,
           imageUrl: savedPost.imageUrl || undefined,
-          scheduledTime: validScheduledTime,
-          photo_url: savedPost.imageUrl || undefined,
-          scheduled_time: validScheduledTime,
-          user_id: currentUserId, // Also include as user_id for extension compatibility
+          scheduleTime: validScheduledTime, // v4.0 renamed from scheduledTime
         };
         
-        console.log("📤 Sending to extension with userId:", postForExtension);
+        console.log("📤 Sending to extension (v4.0 - no user_id):", postForExtension);
         
-        const result = await sendPendingPosts([postForExtension as any], currentUserId);
+        const result = await sendPendingPosts([postForExtension]);
         
         if (result.success) {
           // Add to Generated Posts panel
