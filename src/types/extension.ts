@@ -1,4 +1,4 @@
-// Chrome Extension Event Types
+// Chrome Extension Event Types - v4.0 (Simplified)
 
 export type ExtensionEventType = 
   | 'postScheduled'
@@ -37,13 +37,13 @@ export interface ExtensionEvent {
   data: ExtensionEventData;
 }
 
+// v4.0 - Simplified post payload (NO user_id)
 export interface PostSchedulePayload {
   id: string;
-  trackingId: string;
   content: string;
-  scheduledTime: string;
-  userId?: string;
-  imageUrl?: string | null;
+  imageUrl?: string | null;  // Renamed from photo_url
+  scheduleTime?: string;     // Renamed from scheduledTime/scheduled_time
+  trackingId?: string;       // For database sync
 }
 
 export interface ScheduleResult {
@@ -57,6 +57,7 @@ export interface ScheduleResult {
 export interface ExtensionConnectedMessage {
   type: 'EXTENSION_CONNECTED';
   version?: string;
+  extensionId?: string;
 }
 
 export interface ExtensionDisconnectedMessage {
@@ -69,6 +70,7 @@ export interface ExtensionEventMessage {
   data: ExtensionEventData;
 }
 
+// v4.0 - Simplified schedule message (NO user_id)
 export interface SchedulePostsMessage {
   type: 'SCHEDULE_POSTS';
   posts: PostSchedulePayload[];
@@ -79,6 +81,24 @@ export interface ScheduleResultMessage {
   success: boolean;
   message?: string;
   scheduledCount?: number;
+  queueLength?: number;
+  error?: string;
+}
+
+// v4.0 - Simplified post now message (NO user_id)
+export interface PostNowMessage {
+  type: 'POST_NOW';
+  post: {
+    id: string;
+    content: string;
+    imageUrl?: string | null;
+  };
+}
+
+export interface PostResultMessage {
+  type: 'POST_RESULT';
+  success: boolean;
+  postId?: string;
   error?: string;
 }
 
@@ -87,4 +107,6 @@ export type ExtensionMessage =
   | ExtensionDisconnectedMessage
   | ExtensionEventMessage
   | SchedulePostsMessage
-  | ScheduleResultMessage;
+  | ScheduleResultMessage
+  | PostNowMessage
+  | PostResultMessage;

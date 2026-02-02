@@ -1,6 +1,5 @@
-// useLinkedBotExtension.ts
+// useLinkedBotExtension.ts - v4.0 (Simplified - NO auth/user_id)
 // React hook for LinkedBot Chrome Extension Communication
-// Handles context invalidation and auto-reconnection
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
@@ -13,12 +12,13 @@ interface ExtensionState {
   requiresRefresh: boolean;
 }
 
+// v4.0 - Simplified post data (NO user_id)
 interface PostData {
   id: string;
   content: string;
-  scheduled_time?: string;
-  photo_url?: string;
-  user_id?: string;
+  imageUrl?: string;       // Renamed from photo_url
+  scheduleTime?: string;   // Renamed from scheduled_time
+  trackingId?: string;
 }
 
 export function useLinkedBotExtension() {
@@ -43,48 +43,22 @@ export function useLinkedBotExtension() {
 
       // Extension connected
       if (message.type === 'EXTENSION_CONNECTED') {
-        if (message.extensionId) {
-          setState({
-            isInstalled: true,
-            isConnected: true,
-            extensionId: message.extensionId,
-            isLoading: false,
-            requiresRefresh: false,
-          });
-          
-          toast.success('Extension Connected', {
-            description: 'LinkedBot extension is ready to use!',
-          });
-        } else {
-          setState(prev => ({
-            ...prev,
-            isConnected: false,
-            isLoading: false,
-            requiresRefresh: message.requiresRefresh || false,
-          }));
-          
-          if (message.requiresRefresh) {
-            toast.error('Refresh Required', {
-              description: message.error || 'Extension was reloaded. Please refresh the page.',
-              duration: 10000,
-            });
-          }
-        }
-      }
-
-      // NEW: Handle SESSION_SYNCED, LINKEDBOT_AUTH_READY, AUTH_SET messages from extension
-      if (message.type === 'SESSION_SYNCED' || message.type === 'LINKEDBOT_AUTH_READY' || message.type === 'AUTH_SET') {
-        console.log('✅ Extension detected via message:', message.type);
-        setState(prev => ({
-          ...prev,
+        setState({
           isInstalled: true,
           isConnected: true,
+          extensionId: message.extensionId || null,
           isLoading: false,
           requiresRefresh: false,
-        }));
+        });
         
-        // Save to localStorage for persistence
         localStorage.setItem('extension_connected', 'true');
+        if (message.extensionId) {
+          localStorage.setItem('extension_id', message.extensionId);
+        }
+        
+        toast.success('Extension Connected', {
+          description: 'LinkedBot extension is ready to use!',
+        });
       }
 
       // Extension status check
@@ -195,43 +169,34 @@ export function useLinkedBotExtension() {
   // ============================================================================
   
   useEffect(() => {
-    // Check if extension API is available directly
-    if (typeof window.LinkedBotExtension !== 'undefined') {
-      setState(prev => ({ ...prev, isInstalled: true }));
-      checkExtension();
-    } else {
-      // Check localStorage for previously connected extension
-      const wasConnected = localStorage.getItem('extension_connected') === 'true';
-      const savedExtensionId = localStorage.getItem('extension_id');
-      
-      if (wasConnected && savedExtensionId) {
-        // Restore connection state from localStorage
-        setState(prev => ({
-          ...prev,
-          isInstalled: true,
-          isConnected: true,
-          extensionId: savedExtensionId,
-          isLoading: false,
-        }));
-      }
-      
-      // Auto-check extension status on mount via message
-      setTimeout(() => {
-        window.postMessage({ type: 'CHECK_EXTENSION' }, '*');
-      }, 500);
-      
-      // CRITICAL: Set loading to false after short timeout
-      // Don't wait forever for extension response
-      setTimeout(() => {
-        setState(prev => {
-          if (prev.isLoading) {
-            console.log('⏱️ Extension check timeout - setting loading to false');
-            return { ...prev, isLoading: false };
-          }
-          return prev;
-        });
-      }, 1500); // Reduced from 2000ms to 1500ms
+    // Check localStorage for previously connected extension
+    const wasConnected = localStorage.getItem('extension_connected') === 'true';
+    const savedExtensionId = localStorage.getItem('extension_id');
+    
+    if (wasConnected && savedExtensionId) {
+      setState(prev => ({
+        ...prev,
+        isInstalled: true,
+        isConnected: true,
+        extensionId: savedExtensionId,
+        isLoading: false,
+      }));
     }
+    
+    // Send connection check message
+    setTimeout(() => {
+      window.postMessage({ type: 'CHECK_EXTENSION' }, '*');
+    }, 500);
+    
+    // Set loading to false after timeout
+    setTimeout(() => {
+      setState(prev => {
+        if (prev.isLoading) {
+          return { ...prev, isLoading: false };
+        }
+        return prev;
+      });
+    }, 1500);
 
     // Listen for extension ready event
     const handleExtensionReady = () => {
@@ -253,44 +218,29 @@ export function useLinkedBotExtension() {
   const connectExtension = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true }));
     
-    // Try direct API first
-    if (typeof window.LinkedBotExtension?.connect === 'function') {
-      try {
-        const result = await window.LinkedBotExtension.connect();
-        if (result.success) {
-          setState({
-            isInstalled: true,
-            isConnected: true,
-            extensionId: result.extensionId || null,
-            isLoading: false,
-            requiresRefresh: false,
-          });
-          localStorage.setItem('extension_connected', 'true');
-          if (result.extensionId) {
-            localStorage.setItem('extension_id', result.extensionId);
-          }
-          return { success: true, extensionId: result.extensionId };
-        } else {
-          throw new Error(result.error || 'Connection failed');
-        }
-      } catch (error) {
-        setState(prev => ({ ...prev, isLoading: false }));
-        throw error;
-      }
-    }
-    
-    // Fallback to message-based connection
+    // Send connection request via postMessage
     window.postMessage({ type: 'CONNECT_EXTENSION' }, '*');
-    return { success: true };
+    
+    // Wait for response
+    return new Promise<{ success: boolean; extensionId?: string }>((resolve) => {
+      const timeout = setTimeout(() => {
+        setState(prev => ({ ...prev, isLoading: false }));
+        resolve({ success: false });
+      }, 3000);
+      
+      const handler = (event: MessageEvent) => {
+        if (event.data.type === 'EXTENSION_CONNECTED') {
+          clearTimeout(timeout);
+          window.removeEventListener('message', handler);
+          resolve({ success: true, extensionId: event.data.extensionId });
+        }
+      };
+      
+      window.addEventListener('message', handler);
+    });
   }, []);
 
   const disconnectExtension = useCallback(async () => {
-    // Try direct API first
-    if (typeof window.LinkedBotExtension?.disconnect === 'function') {
-      await window.LinkedBotExtension.disconnect();
-    }
-    
-    // Also send message
     window.postMessage({ type: 'DISCONNECT_EXTENSION' }, '*');
     
     setState({
@@ -306,31 +256,13 @@ export function useLinkedBotExtension() {
   }, []);
 
   const checkExtension = useCallback(async () => {
-    // Try direct API first
-    if (typeof window.LinkedBotExtension?.checkStatus === 'function') {
-      try {
-        const result = await window.LinkedBotExtension.checkStatus();
-        setState(prev => ({
-          ...prev,
-          isInstalled: true,
-          isConnected: result.connected,
-          extensionId: result.extensionId || prev.extensionId,
-          isLoading: false,
-        }));
-        return;
-      } catch (error) {
-        console.error('Error checking extension:', error);
-      }
-    }
-    
-    // Fallback to message
     window.postMessage({ type: 'CHECK_EXTENSION' }, '*');
   }, []);
 
-  const postNow = useCallback(async (post: PostData): Promise<{ success: boolean; error?: string; linkedinPostId?: string }> => {
-    console.log('=== useLinkedBotExtension.postNow CALLED ===');
+  // v4.0 - Simplified postNow (NO user_id)
+  const postNow = useCallback(async (post: PostData): Promise<{ success: boolean; error?: string }> => {
+    console.log('=== useLinkedBotExtension.postNow v4.0 ===');
     console.log('Post:', post);
-    console.log('State:', state);
 
     if (!state.isConnected) {
       toast.error('Not Connected', {
@@ -350,56 +282,24 @@ export function useLinkedBotExtension() {
       return { success: false, error: 'Page refresh required' };
     }
 
-    // Try direct API first
-    if (typeof window.LinkedBotExtension?.postNow === 'function') {
-      try {
-        const result = await window.LinkedBotExtension.postNow({
-          id: post.id,
-          content: post.content,
-          photo_url: post.photo_url,
-          scheduled_time: post.scheduled_time || new Date().toISOString(),
-        });
-        
-        if (!result.success && result.error) {
-          let userFriendlyError = result.error;
-          
-          if (result.error.includes('No tab with id')) {
-            userFriendlyError = 'LinkedIn tab was closed. The extension will attempt to reopen it automatically.';
-          } else if (result.error.includes('Extension context invalidated')) {
-            userFriendlyError = 'Extension was reloaded. Please refresh this page and try again.';
-          } else if (result.error.includes('Could not establish connection')) {
-            userFriendlyError = 'Extension disconnected. Please check if the extension is enabled in Chrome.';
-          }
-          
-          return { success: false, error: userFriendlyError };
-        }
-        
-        return result;
-      } catch (error) {
-        console.error('Error posting:', error);
-        return { 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Failed to post' 
-        };
-      }
-    }
-
-    // Fallback to message-based posting
+    // v4.0 - Simple payload (NO user_id)
     window.postMessage({
       type: 'POST_NOW',
       post: {
         id: post.id,
-        user_id: post.user_id,
         content: post.content,
-        photo_url: post.photo_url,
-        scheduled_for: post.scheduled_time || new Date().toISOString(),
+        imageUrl: post.imageUrl || null,
       },
     }, '*');
     
     return { success: true };
   }, [state.isConnected, state.requiresRefresh]);
 
-  const sendPendingPosts = useCallback(async (posts: PostData[], userId?: string): Promise<{ success: boolean; error?: string; queueLength?: number }> => {
+  // v4.0 - Simplified sendPendingPosts (NO user_id)
+  const sendPendingPosts = useCallback(async (posts: PostData[]): Promise<{ success: boolean; error?: string; queueLength?: number }> => {
+    console.log('=== useLinkedBotExtension.sendPendingPosts v4.0 ===');
+    console.log('Posts:', posts);
+
     if (!state.isConnected) {
       return { success: false, error: 'Extension not connected' };
     }
@@ -408,53 +308,13 @@ export function useLinkedBotExtension() {
       return { success: false, error: 'Page refresh required' };
     }
 
-    // Try direct API first
-    if (typeof window.LinkedBotExtension !== 'undefined') {
-      const api: any = window.LinkedBotExtension;
-      const candidates = [
-        'sendPendingPosts',
-        'sendPosts',
-        'sendScheduledPosts',
-        'schedulePosts',
-        'queuePosts',
-        'enqueuePosts',
-        'addPosts',
-      ];
-
-      const fnName = candidates.find((name) => typeof api?.[name] === 'function');
-      if (fnName) {
-        const transformedPosts = posts.map(post => ({
-          id: post.id,
-          userId: userId || post.user_id, // For sync-post ownership verification
-          user_id: userId || post.user_id, // For extension compatibility
-          trackingId: (post as any).trackingId, // Include trackingId for post lookup
-          content: post.content,
-          photo_url: post.photo_url,
-          scheduled_for: post.scheduled_time,
-          scheduled_time: post.scheduled_time,
-        }));
-
-        try {
-          const result = await api[fnName](transformedPosts);
-          if (result && result.success === false) {
-            return { success: false, error: result.error || 'Extension rejected posts' };
-          }
-          return { success: true, queueLength: result?.queueLength };
-        } catch (error) {
-          return { success: false, error: error instanceof Error ? error.message : 'Failed to send posts' };
-        }
-      }
-    }
-
-    // Fallback to message-based scheduling
+    // v4.0 - Simple payload (NO user_id, renamed fields)
     const transformedPosts = posts.map(post => ({
       id: post.id,
-      userId: userId || post.user_id, // For sync-post ownership verification
-      user_id: userId || post.user_id, // For extension compatibility
-      trackingId: (post as any).trackingId, // Include trackingId for post lookup
       content: post.content,
-      photo_url: post.photo_url,
-      scheduled_for: post.scheduled_time,
+      imageUrl: post.imageUrl || null,
+      scheduleTime: post.scheduleTime,
+      trackingId: post.trackingId,
     }));
 
     window.postMessage({
@@ -481,12 +341,6 @@ export function useLinkedBotExtension() {
       return { success: false, error: 'Extension not connected' };
     }
 
-    // Try direct API first
-    if (typeof window.LinkedBotExtension?.scanPosts === 'function') {
-      return await window.LinkedBotExtension.scanPosts(limit);
-    }
-
-    // Fallback to message
     window.postMessage({
       type: 'SCAN_POSTS',
       limit: limit,
@@ -495,113 +349,39 @@ export function useLinkedBotExtension() {
     return { success: true };
   }, [state.isConnected]);
 
-  // 🔒 Set current user in extension (for data isolation)
-  const setCurrentUser = useCallback((userId: string) => {
-    console.log('🔒 Setting current user in extension:', userId);
-    window.postMessage({
-      type: 'SET_CURRENT_USER',
-      userId: userId
-    }, '*');
-    window.postMessage({
-      type: 'SET_USER_ID',
-      userId: userId
-    }, '*');
-  }, []);
-
-  // 🔒 Clear user session on logout
-  const clearUserSession = useCallback(() => {
-    console.log('🔒 Clearing user session in extension');
-    window.postMessage({
-      type: 'CLEAR_USER_SESSION'
-    }, '*');
-    window.postMessage({
-      type: 'LOGOUT_USER'
-    }, '*');
-  }, []);
-
   return {
-    // State - maintain backwards compatibility
-    isInstalled: state.isInstalled,
+    // State
     isConnected: state.isConnected,
+    isInstalled: state.isInstalled,
     extensionId: state.extensionId,
     isLoading: state.isLoading,
     requiresRefresh: state.requiresRefresh,
     
-    // Methods
+    // Connection methods
     connectExtension,
     disconnectExtension,
     checkExtension,
+    
+    // Posting methods (v4.0 - simplified)
     postNow,
     sendPendingPosts,
+    
+    // Other methods
     scrapeAnalytics,
     scanPosts,
-    setCurrentUser,
-    clearUserSession,
   };
 }
 
-// Export as both named and default for compatibility
-export const useLinkedBotExtensionHook = useLinkedBotExtension;
-
-// Type declaration for window
+// Type declarations for extension API on window
 declare global {
   interface Window {
     LinkedBotExtension?: {
-      isInstalled: boolean;
-      isConnected: boolean;
-      extensionId: string | null;
       connect: () => Promise<{ success: boolean; extensionId?: string; error?: string }>;
-      disconnect: () => Promise<{ success: boolean }>;
+      disconnect: () => Promise<void>;
       checkStatus: () => Promise<{ connected: boolean; extensionId?: string }>;
-      sendPendingPosts: (posts: { id: string; content: string; photo_url?: string; scheduled_time: string }[]) => void;
-      postNow: (post: { id: string; content: string; photo_url?: string; scheduled_time: string }) => Promise<{ success: boolean; linkedinPostId?: string; error?: string }>;
-      onEvent: (callback: (event: string, data: unknown) => void) => void;
-      saveProfileUrl?: (url: string) => Promise<{ success: boolean; error?: string }>;
-      scrapeProfile?: (profileUrl: string) => Promise<{
-        success: boolean;
-        error?: string;
-        data?: {
-          fullName?: string;
-          headline?: string;
-          profilePhoto?: string;
-          currentRole?: string;
-          currentCompany?: string;
-          location?: string;
-          followersCount?: number;
-          connectionsCount?: number;
-          profileUrl?: string;
-          username?: string;
-        };
-      }>;
-      scrapeAnalytics: () => Promise<{ 
-        success: boolean; 
-        error?: string; 
-        data?: { 
-          profile: { 
-            username?: string; 
-            profileUrl?: string; 
-            followersCount?: number; 
-            connectionsCount?: number;
-            fullName?: string;
-            headline?: string;
-            profilePhoto?: string;
-            currentRole?: string;
-            currentCompany?: string;
-            location?: string;
-          };
-          posts: Array<{ postId?: string; content?: string; views?: number; likes?: number; comments?: number; reposts?: number; timestamp?: string; linkedinUrl?: string }>;
-          scrapedAt: string;
-        } 
-      }>;
-      scanPosts: (limit?: number) => Promise<{ 
-        success: boolean; 
-        error?: string; 
-        data?: { 
-          posts: Array<{ content: string; timestamp?: string; views?: number; likes?: number; comments?: number; reposts?: number; postUrl?: string }>;
-          writingStyle?: { avgPostLength?: number; tone?: string; usesEmojis?: boolean; usesHashtags?: boolean; avgHashtagsPerPost?: number; commonHashtags?: string[] };
-        } 
-      }>;
-      onPostHistoryScanned?: (callback: (data: unknown) => void) => void;
+      postNow: (post: { id: string; content: string; imageUrl?: string }) => Promise<{ success: boolean; error?: string }>;
+      schedulePosts: (posts: Array<{ id: string; content: string; imageUrl?: string; scheduleTime?: string }>) => Promise<{ success: boolean; queueLength?: number; error?: string }>;
+      scanPosts: (limit?: number) => Promise<{ success: boolean; posts?: any[]; error?: string }>;
     };
   }
 }

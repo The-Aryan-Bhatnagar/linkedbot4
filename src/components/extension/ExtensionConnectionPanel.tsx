@@ -119,12 +119,12 @@ export function ExtensionConnectionPanel() {
 // EXAMPLE: Post Publishing Button
 // ============================================================================
 
+// v4.0 - Simplified interface (NO scheduled_time for immediate posts)
 interface PostNowButtonProps {
   post: {
     id: string;
     content: string;
-    photo_url?: string;
-    scheduled_time?: string;
+    imageUrl?: string;  // v4.0 renamed from photo_url
   };
   onSuccess?: () => void;
   onError?: (error: string) => void;
@@ -134,11 +134,11 @@ export function PostNowButton({ post, onSuccess, onError }: PostNowButtonProps) 
   const { isConnected, postNow, requiresRefresh, isLoading } = useLinkedBotExtension();
 
   const handlePost = async () => {
+    // v4.0 - Simple payload
     const result = await postNow({
       id: post.id,
       content: post.content,
-      photo_url: post.photo_url,
-      scheduled_time: post.scheduled_time || new Date().toISOString(),
+      imageUrl: post.imageUrl,
     });
 
     if (result.success) {
@@ -177,23 +177,24 @@ export function PostNowButton({ post, onSuccess, onError }: PostNowButtonProps) 
 // EXAMPLE: Schedule Posts Button
 // ============================================================================
 
+// v4.0 - Simplified interface (NO userId)
 interface SchedulePostsButtonProps {
   posts: Array<{
     id: string;
     content: string;
-    photo_url?: string;
-    scheduled_time: string;
+    imageUrl?: string;     // v4.0 renamed from photo_url
+    scheduleTime: string;  // v4.0 renamed from scheduled_time
   }>;
-  userId?: string;
   onSuccess?: () => void;
   onError?: (error: string) => void;
 }
 
-export function SchedulePostsButton({ posts, userId, onSuccess, onError }: SchedulePostsButtonProps) {
+export function SchedulePostsButton({ posts, onSuccess, onError }: SchedulePostsButtonProps) {
   const { isConnected, sendPendingPosts, requiresRefresh, isLoading } = useLinkedBotExtension();
 
   const handleSchedule = async () => {
-    const result = await sendPendingPosts(posts, userId);
+    // v4.0 - No userId parameter
+    const result = await sendPendingPosts(posts);
 
     if (result.success) {
       onSuccess?.();

@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useExtensionEvents } from "@/hooks/useExtensionEvents";
-import { useExtensionAuth } from "@/hooks/useExtensionAuth";
 import { startAnalyticsCron } from "@/lib/analytics-cron";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -52,10 +51,9 @@ const AppContent = () => {
   // Listen for extension events globally
   useExtensionEvents();
   
-  // ✅ Auto-sync Supabase session to extension on every page load
-  useExtensionAuth();
+  // v4.0 - REMOVED useExtensionAuth (extension doesn't need Supabase session)
   
-  // ✅ Start analytics cron job (runs every 2 hours)
+  // Start analytics cron job (runs every 2 hours)
   useEffect(() => {
     startAnalyticsCron();
   }, []);
