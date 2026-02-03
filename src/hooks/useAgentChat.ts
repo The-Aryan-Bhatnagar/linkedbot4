@@ -1,7 +1,13 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { generatePostTrackingId, embedTrackingId, parseScheduleTime } from "@/lib/postHelpers";
+import { generatePostTrackingId, embedTrackingId } from "@/lib/postHelpers";
+import { 
+  parseScheduleTime, 
+  validateScheduleTime, 
+  formatRelativeScheduledTime,
+  SCHEDULE_ERRORS 
+} from "@/lib/scheduling";
 import { 
   PostStatus, 
   validatePreflightForScheduling, 
