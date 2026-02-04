@@ -187,17 +187,11 @@ export const useExtensionEvents = () => {
         });
       }
       
-      // LinkedIn UI change detection - CRITICAL ALERT
+      // LinkedIn UI change detection - CRITICAL ALERT (Admin only, no user notification)
       if (message.type === 'EXTENSION_EVENT' && message.event === 'linkedinUIChanged') {
         console.error('🚨 CRITICAL: LinkedIn UI changed!', message.data);
         
-        // Show user-friendly error immediately
-        toast.error(
-          'LinkedIn updated their interface. Posting may be affected. Our team has been notified.',
-          { duration: 10000 }
-        );
-        
-        // Log to database and send admin alert
+        // Log to database and send admin alert silently (no user toast)
         (async () => {
           try {
             const { supabase } = await import('@/integrations/supabase/client');
