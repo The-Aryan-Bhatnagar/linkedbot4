@@ -847,6 +847,21 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_admin_scheduled_posts: {
+        Args: never
+        Returns: {
+          content: string
+          created_at: string
+          photo_url: string
+          post_id: string
+          scheduled_time: string
+          status: string
+          tracking_id: string
+          user_email: string
+          user_id: string
+          user_name: string
+        }[]
+      }
       get_admin_users_data: {
         Args: never
         Returns: {

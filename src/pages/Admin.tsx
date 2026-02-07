@@ -37,6 +37,7 @@ import {
   Shield,
   TrendingUp,
   Calendar,
+  Clock,
   MapPin,
   Linkedin,
   Phone,
@@ -50,6 +51,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { AdminNotificationSender } from "@/components/admin/AdminNotificationSender";
 import { AdminAlertsDashboard } from "@/components/admin/AdminAlertsDashboard";
+import { AdminScheduledPosts } from "@/components/admin/AdminScheduledPosts";
 
 interface AdminUser {
   id: string;
@@ -187,6 +189,7 @@ const AdminPage = () => {
   }).length;
   const paidUsers = users.filter((u) => u.subscription_plan !== "free").length;
   const totalPosts = users.reduce((sum, u) => sum + (u.posts_published_count || 0), 0);
+  const totalScheduled = users.reduce((sum, u) => sum + (u.posts_scheduled_count || 0), 0);
 
   if (isLoading) {
     return (
@@ -233,7 +236,7 @@ const AdminPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-2 lg:grid-cols-5 gap-4"
         >
           <Card>
             <CardHeader className="pb-2">
@@ -270,12 +273,23 @@ const AdminPage = () => {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Posts Published</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Posts Published</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-secondary" />
                 <span className="text-2xl font-bold">{totalPosts}</span>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-primary/20 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Scheduled Posts</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-primary" />
+                <span className="text-2xl font-bold">{totalScheduled}</span>
               </div>
             </CardContent>
           </Card>
@@ -303,6 +317,15 @@ const AdminPage = () => {
           transition={{ delay: 0.18 }}
         >
           <AdminAlertsDashboard />
+        </motion.div>
+
+        {/* Scheduled Posts Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.22 }}
+        >
+          <AdminScheduledPosts />
         </motion.div>
 
         {/* Filters */}
