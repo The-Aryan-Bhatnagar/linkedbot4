@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { OnboardingStep1 } from "@/components/onboarding/OnboardingStep1";
 import { OnboardingStep2Company } from "@/components/onboarding/OnboardingStep2Company";
 import { OnboardingStep2Personal } from "@/components/onboarding/OnboardingStep2Personal";
+import { OnboardingStepExtension } from "@/components/onboarding/OnboardingStepExtension";
 
 const Onboarding = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
@@ -137,9 +138,9 @@ const Onboarding = () => {
           </p>
         </div>
 
-        {/* Progress indicator - Now only 2 steps */}
+        {/* Progress indicator - 3 steps */}
         <div className="flex items-center justify-center gap-2 mb-8">
-          {[1, 2].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div
               key={s}
               className={`h-2 rounded-full transition-all duration-300 ${
@@ -181,7 +182,7 @@ const Onboarding = () => {
                 country={country}
                 setCountry={setCountry}
                 onBack={() => setStep(1)}
-                onNext={handleComplete}
+                onNext={() => setStep(3)}
               />
             )}
 
@@ -202,6 +203,13 @@ const Onboarding = () => {
                 country={country}
                 setCountry={setCountry}
                 onBack={() => setStep(1)}
+                onNext={() => setStep(3)}
+              />
+            )}
+
+            {step === 3 && (
+              <OnboardingStepExtension
+                onBack={() => setStep(2)}
                 onNext={handleComplete}
               />
             )}
