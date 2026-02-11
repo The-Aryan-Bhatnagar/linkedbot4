@@ -66,25 +66,25 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     return `${plan.charAt(0).toUpperCase()}${plan.slice(1)} Plan`;
   };
 
-  const handleLogout = async () => {
-    // Clear extension data before logout for security
+  const handleLogout = () => {
+    // Run logout synchronously to avoid dropdown swallowing the click
     console.log('🔒 Logging out user from extension');
     
-    // Send LOGOUT_USER for improved extension auth
     window.postMessage({ type: 'LOGOUT_USER' }, '*');
-    
-    // Also send legacy CLEAR_USER_SESSION for backwards compatibility
     window.postMessage({ type: 'CLEAR_USER_SESSION' }, '*');
     
-    // Use bridge if available
     if (typeof (window as any).LinkedBotBridge !== 'undefined') {
       (window as any).LinkedBotBridge.clearUserSession();
     }
     
     console.log('✅ User logout sent to extension');
     
-    await supabase.auth.signOut();
-    navigate("/login");
+    supabase.auth.signOut().then(() => {
+      navigate("/login");
+    }).catch(() => {
+      // Force navigate even if signOut fails
+      navigate("/login");
+    });
   };
 
   return (
