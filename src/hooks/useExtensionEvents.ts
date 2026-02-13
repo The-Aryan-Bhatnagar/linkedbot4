@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { ExtensionEventType } from '@/types/extension';
 import { validateLinkedInPostUrl } from '@/lib/linkedinUrlUtils';
+import { sanitizeAnalyticsValue } from '@/lib/analyticsSanitizer';
 
 // Re-export for backward compatibility
 export type { ExtensionEventType } from '@/types/extension';
@@ -415,10 +416,10 @@ export const useExtensionEvents = () => {
                     continue;
                   }
                   
-                  const views = result.views || 0;
-                  const likes = result.likes || 0;
-                  const comments = result.comments || 0;
-                  const shares = result.reposts || result.shares || 0;
+                  const views = sanitizeAnalyticsValue(result.views);
+                  const likes = sanitizeAnalyticsValue(result.likes);
+                  const comments = sanitizeAnalyticsValue(result.comments);
+                  const shares = sanitizeAnalyticsValue(result.reposts || result.shares);
                   
                   console.log(`💾 Saving analytics for ${result.url}:`, { views, likes, comments, shares });
                   
