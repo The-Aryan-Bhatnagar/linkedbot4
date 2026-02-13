@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import type { AnalyticsScrapeResult, BulkAnalyticsResultMessage } from '@/types/extension';
+import { sanitizeAnalytics } from '@/lib/analyticsSanitizer';
 
 // ============================================================================
 // v5.0 - ANALYTICS SCRAPING WITH AUTO-TRIGGER ON EXTENSION READY
@@ -124,21 +125,23 @@ async function handleSingleAnalyticsResult(data: {
 
 async function updatePostAnalytics(postUrl: string, analytics: AnalyticsScrapeResult) {
   try {
+    const safe = sanitizeAnalytics(analytics);
+
     console.log('💾 Updating post analytics:', {
       url: postUrl.substring(0, 50) + '...',
-      views: analytics.views,
-      likes: analytics.likes,
-      comments: analytics.comments,
-      reposts: analytics.reposts
+      views: safe.views,
+      likes: safe.likes,
+      comments: safe.comments,
+      shares: safe.shares,
     });
 
     const { error } = await supabase
       .from('posts')
       .update({
-        views_count: analytics.views,
-        likes_count: analytics.likes,
-        comments_count: analytics.comments,
-        shares_count: analytics.reposts,
+        views_count: safe.views,
+        likes_count: safe.likes,
+        comments_count: safe.comments,
+        shares_count: safe.shares,
         last_synced_at: analytics.scrapedAt || new Date().toISOString()
       })
       .eq('linkedin_post_url', postUrl);

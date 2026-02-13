@@ -64,6 +64,9 @@ serve(async (req) => {
 
     // Save post analytics
     if (posts && posts.length > 0) {
+      // Sanitize values - extension sometimes sends values * 1,000,000
+      const sanitize = (v: number) => (v >= 1_000_000 && v % 1_000_000 === 0) ? v / 1_000_000 : v;
+      
       for (const post of posts) {
         const { error: postError } = await supabase
           .from('post_analytics')
@@ -72,10 +75,10 @@ serve(async (req) => {
             post_id: post.postId || post.id || `post_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             content_preview: post.content?.substring(0, 200) || null,
             linkedin_url: post.linkedinUrl || post.url || null,
-            views: post.views || 0,
-            likes: post.likes || 0,
-            comments: post.comments || 0,
-            shares: post.reposts || post.shares || 0,
+            views: sanitize(post.views || 0),
+            likes: sanitize(post.likes || 0),
+            comments: sanitize(post.comments || 0),
+            shares: sanitize(post.reposts || post.shares || 0),
             post_timestamp: post.timestamp || post.postDate || null,
             scraped_at: scrapedAt || new Date().toISOString(),
           }, {

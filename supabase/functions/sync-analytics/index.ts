@@ -51,11 +51,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Calculate engagement rate
-    const views = analytics.views || analytics.reach || 0;
-    const likes = analytics.likes || 0;
-    const comments = analytics.comments || 0;
-    const shares = analytics.shares || analytics.reposts || 0;
+    // Sanitize values - extension sometimes sends values * 1,000,000
+    const sanitize = (v: number) => (v >= 1_000_000 && v % 1_000_000 === 0) ? v / 1_000_000 : v;
+    
+    const views = sanitize(analytics.views || analytics.reach || 0);
+    const likes = sanitize(analytics.likes || 0);
+    const comments = sanitize(analytics.comments || 0);
+    const shares = sanitize(analytics.shares || analytics.reposts || 0);
 
     // Update post with analytics
     await supabase.from('posts').update({
